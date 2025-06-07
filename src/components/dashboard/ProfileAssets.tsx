@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Github, GraduationCap, ExternalLink, Plus, Edit } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,7 +109,7 @@ export const ProfileAssets = () => {
 
       {/* Account Connections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-card border-border">
+        <Card className="bg-muted/50 border-muted-foreground/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <Github className="w-5 h-5" />
@@ -121,7 +120,7 @@ export const ProfileAssets = () => {
             {githubConnected ? (
               <div className="space-y-2">
                 <p className="text-green-400 text-sm">✓ Connected as @johndoe</p>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full border-muted-foreground/40 hover:bg-muted">
                   Refresh Repositories
                 </Button>
               </div>
@@ -130,7 +129,7 @@ export const ProfileAssets = () => {
                 <p className="text-muted-foreground text-sm">Connect to import your repositories</p>
                 <Button 
                   onClick={() => setGithubConnected(true)}
-                  className="w-full bg-primary hover:bg-primary/90"
+                  className="w-full bg-foreground text-background hover:bg-foreground/90"
                 >
                   <Github className="w-4 h-4 mr-2" />
                   Connect GitHub
@@ -140,7 +139,7 @@ export const ProfileAssets = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="bg-muted/50 border-muted-foreground/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <GraduationCap className="w-5 h-5" />
@@ -151,7 +150,7 @@ export const ProfileAssets = () => {
             {scholarConnected ? (
               <div className="space-y-2">
                 <p className="text-green-400 text-sm">✓ Connected</p>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full border-muted-foreground/40 hover:bg-muted">
                   Refresh Publications
                 </Button>
               </div>
@@ -160,7 +159,7 @@ export const ProfileAssets = () => {
                 <p className="text-muted-foreground text-sm">Connect to import your publications</p>
                 <Button 
                   onClick={() => setScholarConnected(true)}
-                  className="w-full bg-primary hover:bg-primary/90"
+                  className="w-full bg-foreground text-background hover:bg-foreground/90"
                 >
                   <GraduationCap className="w-4 h-4 mr-2" />
                   Connect Scholar
@@ -173,7 +172,7 @@ export const ProfileAssets = () => {
 
       {/* Repositories Section */}
       {githubConnected && (
-        <Card className="bg-card border-border">
+        <Card className="bg-muted/50 border-muted-foreground/20">
           <CardHeader>
             <CardTitle className="text-foreground">My Repositories</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -182,7 +181,7 @@ export const ProfileAssets = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {repositories.map((repo) => (
-              <div key={repo.id} className="p-4 rounded-lg border border-border hover:border-muted-foreground transition-colors">
+              <div key={repo.id} className="p-4 rounded-lg border border-muted-foreground/20 bg-background/50 hover:border-muted-foreground/40 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -193,13 +192,13 @@ export const ProfileAssets = () => {
                     <p className="text-muted-foreground text-sm mb-3">{repo.description}</p>
                     <div className="flex gap-2 mb-3">
                       {repo.languages.map((lang) => (
-                        <Badge key={lang} variant="secondary" className="text-xs">
+                        <Badge key={lang} variant="secondary" className="text-xs bg-muted text-muted-foreground">
                           {lang}
                         </Badge>
                       ))}
                     </div>
                     {repo.keyAchievements && (
-                      <div className="bg-muted p-3 rounded-lg mb-3">
+                      <div className="bg-muted/80 p-3 rounded-lg mb-3 border border-muted-foreground/10">
                         <Label className="text-sm font-medium text-foreground">Key Achievements:</Label>
                         <p className="text-sm text-muted-foreground mt-1">{repo.keyAchievements}</p>
                       </div>
@@ -258,7 +257,7 @@ export const ProfileAssets = () => {
 
       {/* Publications Section */}
       {scholarConnected && (
-        <Card className="bg-card border-border">
+        <Card className="bg-muted/50 border-muted-foreground/20">
           <CardHeader>
             <CardTitle className="text-foreground">My Publications</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -267,7 +266,7 @@ export const ProfileAssets = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {publications.map((pub) => (
-              <div key={pub.id} className="p-4 rounded-lg border border-border hover:border-muted-foreground transition-colors">
+              <div key={pub.id} className="p-4 rounded-lg border border-muted-foreground/20 bg-background/50 hover:border-muted-foreground/40 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-foreground mb-2">{pub.title}</h3>
@@ -276,7 +275,7 @@ export const ProfileAssets = () => {
                       <span>📝 {pub.citations} citations</span>
                     </div>
                     {pub.keyAchievements && (
-                      <div className="bg-muted p-3 rounded-lg mb-3">
+                      <div className="bg-muted/80 p-3 rounded-lg mb-3 border border-muted-foreground/10">
                         <Label className="text-sm font-medium text-foreground">Key Achievements:</Label>
                         <p className="text-sm text-muted-foreground mt-1">{pub.keyAchievements}</p>
                       </div>
