@@ -105,7 +105,6 @@ export const Settings = () => {
                 <Button 
                   variant="destructive" 
                   onClick={handleStopJobSearch}
-                  className="bg-red-600 hover:bg-red-700"
                 >
                   <Pause className="w-4 h-4 mr-2" />
                   Stop Applications
@@ -113,7 +112,7 @@ export const Settings = () => {
               ) : (
                 <Button 
                   onClick={handleStartJobSearch}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   <Play className="w-4 h-4 mr-2" />
                   Start Applications
@@ -198,7 +197,7 @@ export const Settings = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Maximum Weekly Cost</span>
-                  <span className="text-green-400 font-bold">${estimatedWeeklyCost.toFixed(2)}</span>
+                  <span className="text-primary font-bold">${estimatedWeeklyCost.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -283,7 +282,7 @@ export const Settings = () => {
                       {company}
                       <button
                         onClick={() => handleRemoveExcludedCompany(company)}
-                        className="ml-1 hover:bg-red-600 rounded-full p-0.5"
+                        className="ml-1 hover:bg-destructive/80 rounded-full p-0.5"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -303,13 +302,13 @@ export const Settings = () => {
 
       {/* Warning Section */}
       {!requireApproval && isJobSearchActive && (
-        <Card className="bg-orange-900/20 border-orange-800">
+        <Card className="bg-destructive/10 border-destructive/30">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-orange-400 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
               <div>
-                <h3 className="text-orange-400 font-medium mb-1">Automation Enabled</h3>
-                <p className="text-sm text-orange-200">
+                <h3 className="text-destructive font-medium mb-1">Automation Enabled</h3>
+                <p className="text-sm text-destructive/80">
                   Applications will be sent automatically without manual approval. 
                   Make sure your preferences and excluded companies are correctly configured.
                 </p>
