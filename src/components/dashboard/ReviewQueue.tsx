@@ -1,11 +1,12 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, DollarSign, Clock, Building, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserService } from "@/services/userService";
 
 interface PendingApplication {
   id: string;
@@ -23,34 +24,31 @@ interface PendingApplication {
 }
 
 export const ReviewQueue = () => {
-  const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>([]);
+  const { user } = useAuth();
+  const [pendingApplications, setPendingApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchPendingApplications();
-  }, []);
+    if (user) {
+      fetchPendingApplications();
+    }
+  }, [user]);
 
   const fetchPendingApplications = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('pending_applications')
-        .select('*')
-        .order('discovered_at', { ascending: false });
+    if (!user) return;
 
-      if (error) {
-        console.error('Error fetching pending applications:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load pending applications"
-        });
-      } else {
-        setPendingApplications(data || []);
-      }
+    try {
+      const data = await UserService.getPendingApplications(user.id);
+      setPendingApplications(data);
     } catch (error) {
       console.error('Error fetching pending applications:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load pending applications"
+      });
     } finally {
       setLoading(false);
     }

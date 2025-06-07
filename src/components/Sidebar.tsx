@@ -8,11 +8,14 @@ import {
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
-  Clock
+  Clock,
+  LogOut
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
   currentView: DashboardView;
@@ -33,6 +36,7 @@ const navigationItems = [
 
 export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse }: SidebarProps) => {
   const [pendingCount, setPendingCount] = useState(0);
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     const fetchPendingCount = async () => {
@@ -80,7 +84,12 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
       <div className="p-6 border-b border-gray-800">
         <div className="flex items-center justify-between">
           {!collapsed && (
-            <h1 className="text-xl font-bold text-white">AutoApply</h1>
+            <div>
+              <h1 className="text-xl font-bold text-white">AutoApply</h1>
+              {user && (
+                <p className="text-sm text-gray-400 mt-1">{user.email}</p>
+              )}
+            </div>
           )}
           <button
             onClick={onToggleCollapse}
@@ -122,6 +131,21 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
           );
         })}
       </nav>
+
+      {/* Sign Out Button */}
+      <div className="absolute bottom-4 left-4 right-4">
+        <Button
+          onClick={signOut}
+          variant="ghost"
+          className={`w-full text-gray-400 hover:text-white hover:bg-gray-800 ${
+            collapsed ? 'px-2' : 'px-3'
+          }`}
+          title={collapsed ? 'Sign Out' : undefined}
+        >
+          <LogOut size={20} className="flex-shrink-0" />
+          {!collapsed && <span className="ml-3">Sign Out</span>}
+        </Button>
+      </div>
     </div>
   );
 };

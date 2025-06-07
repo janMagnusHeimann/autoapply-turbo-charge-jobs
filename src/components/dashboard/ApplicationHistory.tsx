@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,8 @@ import {
   FileText,
   ExternalLink 
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserService } from "@/services/userService";
 
 interface Application {
   id: number;
@@ -27,10 +29,32 @@ interface Application {
 }
 
 export const ApplicationHistory = () => {
-  const [expandedApplication, setExpandedApplication] = useState<number | null>(null);
+  const { user } = useAuth();
+  const [expandedApplication, setExpandedApplication] = useState<string | null>(null);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock application data
-  const applications: Application[] = [
+  useEffect(() => {
+    if (user) {
+      fetchApplicationHistory();
+    }
+  }, [user]);
+
+  const fetchApplicationHistory = async () => {
+    if (!user) return;
+
+    try {
+      const data = await UserService.getApplicationHistory(user.id);
+      setApplications(data);
+    } catch (error) {
+      console.error('Error fetching application history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock application data for demo if no real data
+  const demoApplications: Application[] = [
     {
       id: 1,
       company: "Vercel",
@@ -102,9 +126,33 @@ export const ApplicationHistory = () => {
     }
   };
 
-  const toggleExpanded = (id: number) => {
+  const toggleExpanded = (id: string) => {
     setExpandedApplication(expandedApplication === id ? null : id);
   };
+
+  // Use real data if available, otherwise demo data
+  const displayApplications = applications.length > 0 ? applications : demoApplications;
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Application History</h1>
+          <p className="text-gray-400">Loading your application history...</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="bg-gray-900 border-gray-800 animate-pulse">
+              <CardContent className="pt-6">
+                <div className="h-8 bg-gray-700 rounded mb-2"></div>
+                <div className="h-4 bg-gray-700 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -118,10 +166,10 @@ export const ApplicationHistory = () => {
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Applications", value: applications.length, color: "text-blue-400" },
-          { label: "Pending", value: applications.filter(a => a.status === 'pending').length, color: "text-yellow-400" },
-          { label: "Interviews", value: applications.filter(a => a.status === 'interview').length, color: "text-green-400" },
-          { label: "Success Rate", value: "33%", color: "text-purple-400" }
+          { label: "Total Applications", value: displayApplications.length, color: "text-blue-400" },
+          { label: "Pending", value: displayApplications.filter(a => a.status === 'submitted' || a.status === 'acknowledged').length, color: "text-yellow-400" },
+          { label: "Interviews", value: displayApplications.filter(a => a.status === 'interview').length, color: "text-green-400" },
+          { label: "Success Rate", value: displayApplications.length > 0 ? Math.round((displayApplications.filter(a => a.status === 'interview' || a.status === 'offer').length / displayApplications.length) * 100) + "%" : "0%", color: "text-purple-400" }
         ].map((stat) => (
           <Card key={stat.label} className="bg-gray-900 border-gray-800">
             <CardContent className="pt-6">
@@ -136,7 +184,7 @@ export const ApplicationHistory = () => {
 
       {/* Applications List */}
       <div className="space-y-4">
-        {applications.map((application) => {
+        {displayApplications.map((application) => {
           const isExpanded = expandedApplication === application.id;
           
           return (
@@ -247,7 +295,7 @@ export const ApplicationHistory = () => {
         })}
       </div>
 
-      {applications.length === 0 && (
+      {displayApplications.length === 0 && (
         <Card className="bg-gray-900 border-gray-800">
           <CardContent className="text-center py-12">
             <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
