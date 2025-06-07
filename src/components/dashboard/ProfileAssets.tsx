@@ -101,17 +101,17 @@ export const ProfileAssets = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">My Profile & CV Assets</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold text-white mb-2">My Profile & CV Assets</h1>
+        <p className="text-gray-400">
           Connect your accounts and manage your professional assets
         </p>
       </div>
 
       {/* Account Connections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-muted/50 border-muted-foreground/20">
+        <Card className="bg-gray-900 border-gray-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
+            <CardTitle className="flex items-center gap-2 text-white">
               <Github className="w-5 h-5" />
               GitHub Account
             </CardTitle>
@@ -120,16 +120,16 @@ export const ProfileAssets = () => {
             {githubConnected ? (
               <div className="space-y-2">
                 <p className="text-green-400 text-sm">✓ Connected as @johndoe</p>
-                <Button variant="outline" size="sm" className="w-full border-muted-foreground/40 hover:bg-muted">
+                <Button variant="outline" size="sm" className="w-full border-gray-700 hover:bg-gray-800 text-white">
                   Refresh Repositories
                 </Button>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-muted-foreground text-sm">Connect to import your repositories</p>
+                <p className="text-gray-400 text-sm">Connect to import your repositories</p>
                 <Button 
                   onClick={() => setGithubConnected(true)}
-                  className="w-full bg-foreground text-background hover:bg-foreground/90"
+                  className="w-full bg-white text-black hover:bg-gray-200"
                 >
                   <Github className="w-4 h-4 mr-2" />
                   Connect GitHub
@@ -139,9 +139,9 @@ export const ProfileAssets = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-muted/50 border-muted-foreground/20">
+        <Card className="bg-gray-900 border-gray-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
+            <CardTitle className="flex items-center gap-2 text-white">
               <GraduationCap className="w-5 h-5" />
               Google Scholar
             </CardTitle>
@@ -150,16 +150,16 @@ export const ProfileAssets = () => {
             {scholarConnected ? (
               <div className="space-y-2">
                 <p className="text-green-400 text-sm">✓ Connected</p>
-                <Button variant="outline" size="sm" className="w-full border-muted-foreground/40 hover:bg-muted">
+                <Button variant="outline" size="sm" className="w-full border-gray-700 hover:bg-gray-800 text-white">
                   Refresh Publications
                 </Button>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-muted-foreground text-sm">Connect to import your publications</p>
+                <p className="text-gray-400 text-sm">Connect to import your publications</p>
                 <Button 
                   onClick={() => setScholarConnected(true)}
-                  className="w-full bg-foreground text-background hover:bg-foreground/90"
+                  className="w-full bg-white text-black hover:bg-gray-200"
                 >
                   <GraduationCap className="w-4 h-4 mr-2" />
                   Connect Scholar
@@ -172,35 +172,35 @@ export const ProfileAssets = () => {
 
       {/* Repositories Section */}
       {githubConnected && (
-        <Card className="bg-muted/50 border-muted-foreground/20">
+        <Card className="bg-gray-900 border-gray-800">
           <CardHeader>
-            <CardTitle className="text-foreground">My Repositories</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <CardTitle className="text-white">My Repositories</CardTitle>
+            <p className="text-sm text-gray-400">
               Select repositories to include in CV generation and add key achievements
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {repositories.map((repo) => (
-              <div key={repo.id} className="p-4 rounded-lg border border-muted-foreground/20 bg-background/50 hover:border-muted-foreground/40 transition-colors">
+              <div key={repo.id} className="p-4 rounded-lg border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-foreground">{repo.name}</h3>
-                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">⭐ {repo.stars}</span>
+                      <h3 className="font-semibold text-white">{repo.name}</h3>
+                      <ExternalLink className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-400">⭐ {repo.stars}</span>
                     </div>
-                    <p className="text-muted-foreground text-sm mb-3">{repo.description}</p>
+                    <p className="text-gray-400 text-sm mb-3">{repo.description}</p>
                     <div className="flex gap-2 mb-3">
                       {repo.languages.map((lang) => (
-                        <Badge key={lang} variant="secondary" className="text-xs bg-muted text-muted-foreground">
+                        <Badge key={lang} variant="secondary" className="text-xs bg-gray-800 text-gray-300">
                           {lang}
                         </Badge>
                       ))}
                     </div>
                     {repo.keyAchievements && (
-                      <div className="bg-muted/80 p-3 rounded-lg mb-3 border border-muted-foreground/10">
-                        <Label className="text-sm font-medium text-foreground">Key Achievements:</Label>
-                        <p className="text-sm text-muted-foreground mt-1">{repo.keyAchievements}</p>
+                      <div className="bg-gray-800/80 p-3 rounded-lg mb-3 border border-gray-700">
+                        <Label className="text-sm font-medium text-white">Key Achievements:</Label>
+                        <p className="text-sm text-gray-400 mt-1">{repo.keyAchievements}</p>
                       </div>
                     )}
                     <Dialog>
@@ -208,32 +208,33 @@ export const ProfileAssets = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
+                          className="border-gray-700 hover:bg-gray-800 text-white"
                           onClick={() => handleEditAchievements(repo.id, repo.keyAchievements)}
                         >
                           <Edit className="w-3 h-3 mr-1" />
                           {repo.keyAchievements ? 'Edit' : 'Add'} Key Achievements
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="bg-gray-900 border-gray-800">
                         <DialogHeader>
-                          <DialogTitle>Key Achievements for {repo.name}</DialogTitle>
+                          <DialogTitle className="text-white">Key Achievements for {repo.name}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div>
-                            <Label htmlFor="achievements">Describe your key achievements for this project:</Label>
+                            <Label htmlFor="achievements" className="text-white">Describe your key achievements for this project:</Label>
                             <Textarea
                               id="achievements"
                               placeholder="e.g., Improved performance by 40%, Deployed to production serving 1000+ users..."
                               value={tempAchievements}
                               onChange={(e) => setTempAchievements(e.target.value)}
-                              className="mt-2"
+                              className="mt-2 bg-gray-800 border-gray-700 text-white"
                             />
                           </div>
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setEditingAchievements(null)}>
+                            <Button variant="outline" onClick={() => setEditingAchievements(null)} className="border-gray-700 hover:bg-gray-800 text-white">
                               Cancel
                             </Button>
-                            <Button onClick={() => handleSaveAchievements(repo.id, 'repo')}>
+                            <Button onClick={() => handleSaveAchievements(repo.id, 'repo')} className="bg-white text-black hover:bg-gray-200">
                               Save
                             </Button>
                           </div>
@@ -242,7 +243,7 @@ export const ProfileAssets = () => {
                     </Dialog>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    <label className="text-sm text-muted-foreground">Use for CV</label>
+                    <label className="text-sm text-gray-400">Use for CV</label>
                     <Switch
                       checked={repo.enabled}
                       onCheckedChange={() => handleToggleRepository(repo.id)}
@@ -257,27 +258,27 @@ export const ProfileAssets = () => {
 
       {/* Publications Section */}
       {scholarConnected && (
-        <Card className="bg-muted/50 border-muted-foreground/20">
+        <Card className="bg-gray-900 border-gray-800">
           <CardHeader>
-            <CardTitle className="text-foreground">My Publications</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <CardTitle className="text-white">My Publications</CardTitle>
+            <p className="text-sm text-gray-400">
               Select publications to include in CV generation and add key achievements
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {publications.map((pub) => (
-              <div key={pub.id} className="p-4 rounded-lg border border-muted-foreground/20 bg-background/50 hover:border-muted-foreground/40 transition-colors">
+              <div key={pub.id} className="p-4 rounded-lg border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground mb-2">{pub.title}</h3>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                    <h3 className="font-semibold text-white mb-2">{pub.title}</h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
                       <span>{pub.venue}</span>
                       <span>📝 {pub.citations} citations</span>
                     </div>
                     {pub.keyAchievements && (
-                      <div className="bg-muted/80 p-3 rounded-lg mb-3 border border-muted-foreground/10">
-                        <Label className="text-sm font-medium text-foreground">Key Achievements:</Label>
-                        <p className="text-sm text-muted-foreground mt-1">{pub.keyAchievements}</p>
+                      <div className="bg-gray-800/80 p-3 rounded-lg mb-3 border border-gray-700">
+                        <Label className="text-sm font-medium text-white">Key Achievements:</Label>
+                        <p className="text-sm text-gray-400 mt-1">{pub.keyAchievements}</p>
                       </div>
                     )}
                     <Dialog>
@@ -285,32 +286,33 @@ export const ProfileAssets = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
+                          className="border-gray-700 hover:bg-gray-800 text-white"
                           onClick={() => handleEditAchievements(pub.id, pub.keyAchievements)}
                         >
                           <Edit className="w-3 h-3 mr-1" />
                           {pub.keyAchievements ? 'Edit' : 'Add'} Key Achievements
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="bg-gray-900 border-gray-800">
                         <DialogHeader>
-                          <DialogTitle>Key Achievements for {pub.title}</DialogTitle>
+                          <DialogTitle className="text-white">Key Achievements for {pub.title}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div>
-                            <Label htmlFor="pub-achievements">Describe the key contributions and impact:</Label>
+                            <Label htmlFor="pub-achievements" className="text-white">Describe the key contributions and impact:</Label>
                             <Textarea
                               id="pub-achievements"
                               placeholder="e.g., Novel algorithm reducing computation time by 50%, Cited by major industry papers..."
                               value={tempAchievements}
                               onChange={(e) => setTempAchievements(e.target.value)}
-                              className="mt-2"
+                              className="mt-2 bg-gray-800 border-gray-700 text-white"
                             />
                           </div>
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setEditingAchievements(null)}>
+                            <Button variant="outline" onClick={() => setEditingAchievements(null)} className="border-gray-700 hover:bg-gray-800 text-white">
                               Cancel
                             </Button>
-                            <Button onClick={() => handleSaveAchievements(pub.id, 'pub')}>
+                            <Button onClick={() => handleSaveAchievements(pub.id, 'pub')} className="bg-white text-black hover:bg-gray-200">
                               Save
                             </Button>
                           </div>
@@ -319,7 +321,7 @@ export const ProfileAssets = () => {
                     </Dialog>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    <label className="text-sm text-muted-foreground">Use for CV</label>
+                    <label className="text-sm text-gray-400">Use for CV</label>
                     <Switch
                       checked={pub.enabled}
                       onCheckedChange={() => handleTogglePublication(pub.id)}
