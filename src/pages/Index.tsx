@@ -1,12 +1,54 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
+import { DashboardHome } from "@/components/dashboard/DashboardHome";
+import { ProfileAssets } from "@/components/dashboard/ProfileAssets";
+import { CompanyDirectory } from "@/components/dashboard/CompanyDirectory";
+import { JobPreferences } from "@/components/dashboard/JobPreferences";
+import { ApplicationHistory } from "@/components/dashboard/ApplicationHistory";
+import { Settings } from "@/components/dashboard/Settings";
+
+export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'preferences' | 'history' | 'settings';
 
 const Index = () => {
+  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return <DashboardHome />;
+      case 'profile':
+        return <ProfileAssets />;
+      case 'companies':
+        return <CompanyDirectory />;
+      case 'preferences':
+        return <JobPreferences />;
+      case 'history':
+        return <ApplicationHistory />;
+      case 'settings':
+        return <Settings />;
+      default:
+        return <DashboardHome />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-black text-white flex">
+      <Sidebar 
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+      
+      <main className={`flex-1 transition-all duration-300 ${
+        sidebarCollapsed ? 'ml-16' : 'ml-64'
+      }`}>
+        <div className="p-8">
+          {renderCurrentView()}
+        </div>
+      </main>
     </div>
   );
 };
