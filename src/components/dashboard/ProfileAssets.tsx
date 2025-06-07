@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
 export const ProfileAssets = () => {
   const [githubConnected, setGithubConnected] = useState(false);
   const [scholarConnected, setScholarConnected] = useState(false);
-  const [editingAchievements, setEditingAchievements] = useState<number | null>(null);
-  const [tempAchievements, setTempAchievements] = useState("");
+  const [editingField, setEditingField] = useState<{ id: number; field: string; type: 'repo' | 'pub' } | null>(null);
+  const [tempValue, setTempValue] = useState("");
+  const [tempTechStack, setTempTechStack] = useState<string[]>([]);
 
   // Mock data for repositories with key achievements
   const [repositories, setRepositories] = useState([
@@ -51,6 +53,7 @@ export const ProfileAssets = () => {
     {
       id: 1,
       title: "Efficient Neural Architecture Search for Computer Vision",
+      description: "Novel approach to neural architecture search reducing computational overhead while maintaining accuracy",
       venue: "ICML 2023",
       citations: 12,
       enabled: true,
@@ -59,6 +62,7 @@ export const ProfileAssets = () => {
     {
       id: 2,
       title: "Scalable Distributed Training of Deep Neural Networks",
+      description: "Framework for distributed training of large neural networks across multiple nodes",
       venue: "NeurIPS 2022",
       citations: 28,
       enabled: true,
@@ -80,23 +84,53 @@ export const ProfileAssets = () => {
     console.log(`Toggling publication ${id}`);
   };
 
-  const handleSaveAchievements = (id: number, type: 'repo' | 'pub') => {
+  const handleSaveField = () => {
+    if (!editingField) return;
+
+    const { id, field, type } = editingField;
+
     if (type === 'repo') {
-      setRepositories(prev => prev.map(repo => 
-        repo.id === id ? { ...repo, keyAchievements: tempAchievements } : repo
-      ));
+      setRepositories(prev => prev.map(repo => {
+        if (repo.id === id) {
+          if (field === 'languages') {
+            return { ...repo, languages: tempTechStack };
+          } else {
+            return { ...repo, [field]: tempValue };
+          }
+        }
+        return repo;
+      }));
     } else {
       setPublications(prev => prev.map(pub => 
-        pub.id === id ? { ...pub, keyAchievements: tempAchievements } : pub
+        pub.id === id ? { ...pub, [field]: tempValue } : pub
       ));
     }
-    setEditingAchievements(null);
-    setTempAchievements("");
+    
+    setEditingField(null);
+    setTempValue("");
+    setTempTechStack([]);
   };
 
-  const handleEditAchievements = (id: number, currentAchievements: string) => {
-    setEditingAchievements(id);
-    setTempAchievements(currentAchievements);
+  const handleEditField = (id: number, field: string, currentValue: string | string[], type: 'repo' | 'pub') => {
+    setEditingField({ id, field, type });
+    if (field === 'languages' && Array.isArray(currentValue)) {
+      setTempTechStack(currentValue);
+      setTempValue("");
+    } else {
+      setTempValue(currentValue as string);
+      setTempTechStack([]);
+    }
+  };
+
+  const addTechStackItem = () => {
+    if (tempValue.trim() && !tempTechStack.includes(tempValue.trim())) {
+      setTempTechStack(prev => [...prev, tempValue.trim()]);
+      setTempValue("");
+    }
+  };
+
+  const removeTechStackItem = (item: string) => {
+    setTempTechStack(prev => prev.filter(tech => tech !== item));
   };
 
   return (
@@ -177,7 +211,7 @@ export const ProfileAssets = () => {
           <div>
             <h2 className="text-2xl font-bold text-white mb-2">My Repositories</h2>
             <p className="text-gray-400">
-              Select repositories to include in CV generation and add key achievements
+              Select repositories to include in CV generation and customize their details
             </p>
           </div>
 
@@ -208,12 +242,35 @@ export const ProfileAssets = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    {repo.description}
-                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400 font-medium">Description</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditField(repo.id, 'description', repo.description, 'repo')}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      {repo.description}
+                    </p>
+                  </div>
                   
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-400 font-medium">Tech Stack</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400 font-medium">Tech Stack</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditField(repo.id, 'languages', repo.languages, 'repo')}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </div>
                     <div className="flex flex-wrap gap-1">
                       {repo.languages.map((lang) => (
                         <Badge key={lang} variant="secondary" className="text-xs">
@@ -225,52 +282,35 @@ export const ProfileAssets = () => {
 
                   {repo.keyAchievements && (
                     <div className="bg-gray-800 p-3 rounded-lg">
-                      <Label className="text-sm font-medium text-white">Key Achievements:</Label>
-                      <p className="text-sm text-gray-300 mt-1">{repo.keyAchievements}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-sm font-medium text-white">Key Achievements:</Label>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditField(repo.id, 'keyAchievements', repo.keyAchievements, 'repo')}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-300">{repo.keyAchievements}</p>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditAchievements(repo.id, repo.keyAchievements)}
-                          className="border-gray-700 text-white hover:bg-gray-800"
-                        >
-                          <Edit className="w-3 h-3 mr-1" />
-                          {repo.keyAchievements ? 'Edit' : 'Add'}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="bg-gray-900 border-gray-800">
-                        <DialogHeader>
-                          <DialogTitle className="text-white">Key Achievements for {repo.name}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="achievements" className="text-white">Describe your key achievements for this project:</Label>
-                            <Textarea
-                              id="achievements"
-                              placeholder="e.g., Improved performance by 40%, Deployed to production serving 1000+ users..."
-                              value={tempAchievements}
-                              onChange={(e) => setTempAchievements(e.target.value)}
-                              className="mt-2 bg-gray-800 border-gray-700 text-white"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setEditingAchievements(null)} className="border-gray-700 text-white hover:bg-gray-800">
-                              Cancel
-                            </Button>
-                            <Button onClick={() => handleSaveAchievements(repo.id, 'repo')} className="bg-blue-600 hover:bg-blue-700">
-                              Save
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    {!repo.keyAchievements && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditField(repo.id, 'keyAchievements', '', 'repo')}
+                        className="border-gray-700 text-white hover:bg-gray-800"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Achievements
+                      </Button>
+                    )}
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ml-auto">
                       <label className="text-sm text-gray-400">Use for CV</label>
                       <Switch
                         checked={repo.enabled}
@@ -291,7 +331,7 @@ export const ProfileAssets = () => {
           <div>
             <h2 className="text-2xl font-bold text-white mb-2">My Publications</h2>
             <p className="text-gray-400">
-              Select publications to include in CV generation and add key achievements
+              Select publications to include in CV generation and customize their details
             </p>
           </div>
 
@@ -320,6 +360,23 @@ export const ProfileAssets = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400 font-medium">Description</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditField(pub.id, 'description', pub.description, 'pub')}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      {pub.description}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
                     <p className="text-xs text-gray-400 font-medium">Venue</p>
                     <Badge variant="secondary" className="text-xs">
                       {pub.venue}
@@ -328,52 +385,35 @@ export const ProfileAssets = () => {
 
                   {pub.keyAchievements && (
                     <div className="bg-gray-800 p-3 rounded-lg">
-                      <Label className="text-sm font-medium text-white">Key Achievements:</Label>
-                      <p className="text-sm text-gray-300 mt-1">{pub.keyAchievements}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-sm font-medium text-white">Key Achievements:</Label>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditField(pub.id, 'keyAchievements', pub.keyAchievements, 'pub')}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-300">{pub.keyAchievements}</p>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between pt-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditAchievements(pub.id, pub.keyAchievements)}
-                          className="border-gray-700 text-white hover:bg-gray-800"
-                        >
-                          <Edit className="w-3 h-3 mr-1" />
-                          {pub.keyAchievements ? 'Edit' : 'Add'}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="bg-gray-900 border-gray-800">
-                        <DialogHeader>
-                          <DialogTitle className="text-white">Key Achievements for {pub.title}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="pub-achievements" className="text-white">Describe the key contributions and impact:</Label>
-                            <Textarea
-                              id="pub-achievements"
-                              placeholder="e.g., Novel algorithm reducing computation time by 50%, Cited by major industry papers..."
-                              value={tempAchievements}
-                              onChange={(e) => setTempAchievements(e.target.value)}
-                              className="mt-2 bg-gray-800 border-gray-700 text-white"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setEditingAchievements(null)} className="border-gray-700 text-white hover:bg-gray-800">
-                              Cancel
-                            </Button>
-                            <Button onClick={() => handleSaveAchievements(pub.id, 'pub')} className="bg-blue-600 hover:bg-blue-700">
-                              Save
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    {!pub.keyAchievements && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditField(pub.id, 'keyAchievements', '', 'pub')}
+                        className="border-gray-700 text-white hover:bg-gray-800"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Achievements
+                      </Button>
+                    )}
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ml-auto">
                       <label className="text-sm text-gray-400">Use for CV</label>
                       <Switch
                         checked={pub.enabled}
@@ -387,6 +427,80 @@ export const ProfileAssets = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingField} onOpenChange={() => setEditingField(null)}>
+        <DialogContent className="bg-gray-900 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Edit {editingField?.field === 'keyAchievements' ? 'Key Achievements' : 
+                   editingField?.field === 'description' ? 'Description' : 'Tech Stack'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {editingField?.field === 'languages' ? (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="tech-input" className="text-white">Add Technology:</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      id="tech-input"
+                      placeholder="e.g., React, Python, Docker..."
+                      value={tempValue}
+                      onChange={(e) => setTempValue(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addTechStackItem()}
+                      className="bg-gray-800 border-gray-700 text-white"
+                    />
+                    <Button onClick={addTechStackItem} className="bg-blue-600 hover:bg-blue-700">
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-white">Current Tech Stack:</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {tempTechStack.map((tech) => (
+                      <Badge 
+                        key={tech} 
+                        variant="secondary" 
+                        className="cursor-pointer hover:bg-red-600"
+                        onClick={() => removeTechStackItem(tech)}
+                      >
+                        {tech} ×
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="edit-field" className="text-white">
+                  {editingField?.field === 'keyAchievements' ? 'Key Achievements:' : 'Description:'}
+                </Label>
+                <Textarea
+                  id="edit-field"
+                  placeholder={
+                    editingField?.field === 'keyAchievements' 
+                      ? "e.g., Improved performance by 40%, Deployed to production serving 1000+ users..."
+                      : "Describe this project or publication..."
+                  }
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                  className="mt-2 bg-gray-800 border-gray-700 text-white"
+                />
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingField(null)} className="border-gray-700 text-white hover:bg-gray-800">
+                Cancel
+              </Button>
+              <Button onClick={handleSaveField} className="bg-blue-600 hover:bg-blue-700">
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
