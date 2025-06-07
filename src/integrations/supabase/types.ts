@@ -87,163 +87,6 @@ export type Database = {
           },
         ]
       }
-      application_attempts: {
-        Row: {
-          application_id: string | null
-          attempt_timestamp: string | null
-          automation_log: string | null
-          created_at: string | null
-          error_message: string | null
-          form_fields_detected: Json | null
-          id: string
-          screenshots_path: string | null
-          success: boolean
-        }
-        Insert: {
-          application_id?: string | null
-          attempt_timestamp?: string | null
-          automation_log?: string | null
-          created_at?: string | null
-          error_message?: string | null
-          form_fields_detected?: Json | null
-          id?: string
-          screenshots_path?: string | null
-          success: boolean
-        }
-        Update: {
-          application_id?: string | null
-          attempt_timestamp?: string | null
-          automation_log?: string | null
-          created_at?: string | null
-          error_message?: string | null
-          form_fields_detected?: Json | null
-          id?: string
-          screenshots_path?: string | null
-          success?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "application_attempts_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      applications: {
-        Row: {
-          ai_feedback: Json | null
-          application_url: string | null
-          applied_at: string | null
-          cover_letter_content: string | null
-          created_at: string | null
-          customized_resume_path: string | null
-          form_data: Json | null
-          id: string
-          job_id: string | null
-          last_updated: string | null
-          notes: string | null
-          status: string | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          ai_feedback?: Json | null
-          application_url?: string | null
-          applied_at?: string | null
-          cover_letter_content?: string | null
-          created_at?: string | null
-          customized_resume_path?: string | null
-          form_data?: Json | null
-          id?: string
-          job_id?: string | null
-          last_updated?: string | null
-          notes?: string | null
-          status?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          ai_feedback?: Json | null
-          application_url?: string | null
-          applied_at?: string | null
-          cover_letter_content?: string | null
-          created_at?: string | null
-          customized_resume_path?: string | null
-          form_data?: Json | null
-          id?: string
-          job_id?: string | null
-          last_updated?: string | null
-          notes?: string | null
-          status?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "applications_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      companies: {
-        Row: {
-          ai_summary: string | null
-          application_process_notes: string | null
-          career_page_url: string | null
-          company_size: string | null
-          created_at: string | null
-          culture_notes: string | null
-          description: string | null
-          id: string
-          industry: string | null
-          last_researched: string | null
-          name: string
-          structured_data: Json | null
-          success_rate: number | null
-          updated_at: string | null
-          website: string | null
-        }
-        Insert: {
-          ai_summary?: string | null
-          application_process_notes?: string | null
-          career_page_url?: string | null
-          company_size?: string | null
-          created_at?: string | null
-          culture_notes?: string | null
-          description?: string | null
-          id?: string
-          industry?: string | null
-          last_researched?: string | null
-          name: string
-          structured_data?: Json | null
-          success_rate?: number | null
-          updated_at?: string | null
-          website?: string | null
-        }
-        Update: {
-          ai_summary?: string | null
-          application_process_notes?: string | null
-          career_page_url?: string | null
-          company_size?: string | null
-          created_at?: string | null
-          culture_notes?: string | null
-          description?: string | null
-          id?: string
-          industry?: string | null
-          last_researched?: string | null
-          name?: string
-          structured_data?: Json | null
-          success_rate?: number | null
-          updated_at?: string | null
-          website?: string | null
-        }
-        Relationships: []
-      }
       cvs: {
         Row: {
           ai_summary: string | null
@@ -447,51 +290,6 @@ export type Database = {
         }
         Relationships: []
       }
-      github_company_sources: {
-        Row: {
-          company_id: string | null
-          confidence_score: number | null
-          first_seen: string | null
-          id: string
-          last_seen: string | null
-          source_description: string | null
-          source_repo: string
-        }
-        Insert: {
-          company_id?: string | null
-          confidence_score?: number | null
-          first_seen?: string | null
-          id?: string
-          last_seen?: string | null
-          source_description?: string | null
-          source_repo: string
-        }
-        Update: {
-          company_id?: string | null
-          confidence_score?: number | null
-          first_seen?: string | null
-          id?: string
-          last_seen?: string | null
-          source_description?: string | null
-          source_repo?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "github_company_sources_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "github_companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "github_company_sources_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "github_companies_ready_for_application"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       github_selenium_applications: {
         Row: {
           application_url: string | null
@@ -568,24 +366,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "github_selenium_applications_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "github_campaign_metrics"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "github_selenium_applications_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "github_companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "github_selenium_applications_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "github_companies_ready_for_application"
             referencedColumns: ["id"]
           },
         ]
@@ -655,13 +439,6 @@ export type Database = {
             columns: ["job_configuration_id"]
             isOneToOne: false
             referencedRelation: "job_configurations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_applications_job_listing_id_fkey"
-            columns: ["job_listing_id"]
-            isOneToOne: false
-            referencedRelation: "job_listings"
             referencedColumns: ["id"]
           },
           {
@@ -753,63 +530,6 @@ export type Database = {
           },
         ]
       }
-      job_listings: {
-        Row: {
-          ai_analysis: string | null
-          company: string
-          created_at: string | null
-          description: string | null
-          employment_type: string | null
-          external_id: string | null
-          id: string
-          is_active: boolean | null
-          location: string | null
-          match_score: number | null
-          requirements: string | null
-          salary_range: string | null
-          source_site: string
-          source_url: string
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          ai_analysis?: string | null
-          company: string
-          created_at?: string | null
-          description?: string | null
-          employment_type?: string | null
-          external_id?: string | null
-          id?: string
-          is_active?: boolean | null
-          location?: string | null
-          match_score?: number | null
-          requirements?: string | null
-          salary_range?: string | null
-          source_site: string
-          source_url: string
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          ai_analysis?: string | null
-          company?: string
-          created_at?: string | null
-          description?: string | null
-          employment_type?: string | null
-          external_id?: string | null
-          id?: string
-          is_active?: boolean | null
-          location?: string | null
-          match_score?: number | null
-          requirements?: string | null
-          salary_range?: string | null
-          source_site?: string
-          source_url?: string
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       jobs: {
         Row: {
           ai_analysis: Json | null
@@ -867,6 +587,60 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_applications: {
+        Row: {
+          company_name: string
+          company_url: string | null
+          created_at: string
+          cv_preview: string | null
+          discovered_at: string
+          id: string
+          job_description: string | null
+          job_title: string
+          job_url: string
+          location: string | null
+          match_score: number | null
+          salary_range: string | null
+          source_platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          company_url?: string | null
+          created_at?: string
+          cv_preview?: string | null
+          discovered_at?: string
+          id?: string
+          job_description?: string | null
+          job_title: string
+          job_url: string
+          location?: string | null
+          match_score?: number | null
+          salary_range?: string | null
+          source_platform?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          company_url?: string | null
+          created_at?: string
+          cv_preview?: string | null
+          discovered_at?: string
+          id?: string
+          job_description?: string | null
+          job_title?: string
+          job_url?: string
+          location?: string | null
+          match_score?: number | null
+          salary_range?: string | null
+          source_platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -911,108 +685,7 @@ export type Database = {
       }
     }
     Views: {
-      github_campaign_metrics: {
-        Row: {
-          applications_attempted: number | null
-          applications_per_day: number | null
-          applications_successful: number | null
-          companies_processed: number | null
-          companies_targeted: number | null
-          completed_at: string | null
-          created_at: string | null
-          description: string | null
-          duration_days: number | null
-          exclude_keywords: string[] | null
-          id: string | null
-          max_applications: number | null
-          min_fit_score: number | null
-          name: string | null
-          source_repos: string[] | null
-          started_at: string | null
-          status: string | null
-          success_rate_percentage: number | null
-          target_keywords: string[] | null
-          target_locations: string[] | null
-          updated_at: string | null
-        }
-        Insert: {
-          applications_attempted?: number | null
-          applications_per_day?: number | null
-          applications_successful?: number | null
-          companies_processed?: number | null
-          companies_targeted?: number | null
-          completed_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          duration_days?: never
-          exclude_keywords?: string[] | null
-          id?: string | null
-          max_applications?: number | null
-          min_fit_score?: number | null
-          name?: string | null
-          source_repos?: string[] | null
-          started_at?: string | null
-          status?: string | null
-          success_rate_percentage?: never
-          target_keywords?: string[] | null
-          target_locations?: string[] | null
-          updated_at?: string | null
-        }
-        Update: {
-          applications_attempted?: number | null
-          applications_per_day?: number | null
-          applications_successful?: number | null
-          companies_processed?: number | null
-          companies_targeted?: number | null
-          completed_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          duration_days?: never
-          exclude_keywords?: string[] | null
-          id?: string | null
-          max_applications?: number | null
-          min_fit_score?: number | null
-          name?: string | null
-          source_repos?: string[] | null
-          started_at?: string | null
-          status?: string | null
-          success_rate_percentage?: never
-          target_keywords?: string[] | null
-          target_locations?: string[] | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      github_companies_ready_for_application: {
-        Row: {
-          ai_summary: string | null
-          all_sources: string[] | null
-          application_priority: number | null
-          application_status: string | null
-          applied_at: string | null
-          created_at: string | null
-          description: string | null
-          fit_score: number | null
-          id: string | null
-          last_checked: string | null
-          location: string | null
-          meta_description: string | null
-          name: string | null
-          notes: string | null
-          page_title: string | null
-          raw_data: Json | null
-          retrieved_at: string | null
-          source_count: number | null
-          source_description: string | null
-          source_line: string | null
-          source_repo: string | null
-          tags: string[] | null
-          updated_at: string | null
-          website: string | null
-          website_accessible: boolean | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       get_github_companies_by_location: {

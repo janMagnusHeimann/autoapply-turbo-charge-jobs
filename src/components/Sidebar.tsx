@@ -7,9 +7,12 @@ import {
   FileText, 
   Settings as SettingsIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Clock
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SidebarProps {
   currentView: DashboardView;
@@ -23,11 +26,52 @@ const navigationItems = [
   { id: 'profile' as DashboardView, label: 'My Profile & CV Assets', icon: User },
   { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
   { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target },
+  { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock },
   { id: 'history' as DashboardView, label: 'Application History', icon: FileText },
   { id: 'settings' as DashboardView, label: 'Settings', icon: SettingsIcon },
 ];
 
 export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse }: SidebarProps) => {
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('pending_applications')
+          .select('id', { count: 'exact' });
+        
+        if (!error && data) {
+          setPendingCount(data.length);
+        }
+      } catch (error) {
+        console.error('Error fetching pending count:', error);
+      }
+    };
+
+    fetchPendingCount();
+
+    // Set up real-time subscription for pending applications
+    const channel = supabase
+      .channel('pending_applications_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pending_applications'
+        },
+        () => {
+          fetchPendingCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
     <div className={`fixed left-0 top-0 h-full bg-gray-900 border-r border-gray-800 transition-all duration-300 ${
       collapsed ? 'w-16' : 'w-64'
@@ -52,12 +96,13 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
+          const showBadge = item.id === 'queue' && pendingCount > 0;
           
           return (
             <button
               key={item.id}
               onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 relative ${
                 isActive 
                   ? 'bg-blue-600 text-white' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -67,6 +112,11 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
               <Icon size={20} className="flex-shrink-0" />
               {!collapsed && (
                 <span className="font-medium">{item.label}</span>
+              )}
+              {showBadge && (
+                <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-2'} bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold`}>
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
               )}
             </button>
           );
