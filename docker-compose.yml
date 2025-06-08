@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Web Application
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY}
+    depends_on:
+      - db
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # Job Crawler Service
+  crawler:
+    build:
+      context: .
+      dockerfile: job-crawler/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${VITE_SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${VITE_SUPABASE_SERVICE_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - LOG_LEVEL=info
+    depends_on:
+      - db
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    # Run crawler every 6 hours
+    command: sh -c "while true; do npm run start; sleep 21600; done"
+
+  # PostgreSQL Database (Optional - use if not using Supabase Cloud)
+  db:
+    image: supabase/postgres:15.1.0.147
+    environment:
+      - POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
+      - POSTGRES_DB=postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  # Supabase Studio (Optional - for local database management)
+  studio:
+    image: supabase/studio:20231103-a6d43a6
+    environment:
+      - SUPABASE_URL=http://kong:8000
+      - STUDIO_PG_META_URL=http://meta:8080
+    ports:
+      - "54323:3000"
+    depends_on:
+      - kong
+    restart: unless-stopped
+
+  # Supabase Kong Gateway (Optional)
+  kong:
+    image: kong:2.8.1
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/var/lib/kong/kong.yml
+      - KONG_DNS_ORDER=LAST,A,CNAME
+      - KONG_PLUGINS=request-size-limiting,cors,key-auth,acl,basic-auth
+    ports:
+      - "54321:8000"
+      - "54322:8443"
+    volumes:
+      - ./supabase/kong.yml:/var/lib/kong/kong.yml
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  # Redis Cache (Optional - for enhanced performance)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

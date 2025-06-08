@@ -1,14 +1,28 @@
 {
-  "name": "vite_react_shadcn_ts",
-  "private": true,
-  "version": "0.0.0",
+  "name": "autoapply",
+  "private": false,
+  "version": "1.0.0",
+  "description": "AI-powered job application automation platform",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "db:setup": "node scripts/setup-database.js",
+    "db:local": "npx supabase start",
+    "db:reset": "npx supabase db reset",
+    "db:seed": "node scripts/seed-database.js",
+    "db:test": "node scripts/test-database.js",
+    "crawler:install": "cd job-crawler && npm install",
+    "crawler:run": "cd job-crawler && npm run start",
+    "crawler:dev": "cd job-crawler && npm run dev",
+    "dev:crawler": "cd job-crawler && npm run dev",
+    "test:system": "node scripts/test-system.js",
+    "test:quick": "npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
