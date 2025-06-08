@@ -1,0 +1,28 @@
+{
+  "name": "job-crawler",
+  "version": "1.0.0",
+  "description": "Automated job crawler for tech startups",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "crawl": "npm run build && npm run start",
+    "test": "echo \"Tests coming soon\" && exit 0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "date-fns": "^3.0.6",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "keywords": ["job-crawler", "tech-jobs", "automation"],
+  "author": "AutoApply",
+  "license": "MIT"
+}

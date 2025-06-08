@@ -1,0 +1,90 @@
+name: Crawl Tech Startup Jobs
+
+on:
+  # Run every 6 hours
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Specific source to crawl (optional)'
+        required: false
+        type: string
+
+env:
+  NODE_ENV: production
+
+jobs:
+  crawl-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: job-crawler/package-lock.json
+
+      - name: Install dependencies
+        working-directory: job-crawler
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: job-crawler
+        run: npm run build
+
+      - name: Run job crawler
+        working-directory: job-crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOG_LEVEL: info
+          MAX_CONCURRENT_REQUESTS: 5
+          REQUEST_DELAY_MS: 1000
+        run: |
+          if [ -n "${{ github.event.inputs.source }}" ]; then
+            npm run start -- --source="${{ github.event.inputs.source }}"
+          else
+            npm run start
+          fi
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawler-logs-${{ github.run_number }}
+          path: job-crawler/logs/
+          retention-days: 7
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    needs: crawl-jobs
+    if: failure()
+    
+    steps:
+      - name: Send notification on failure
+        run: |
+          echo "Job crawl failed at $(date)"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "You can view the logs in the Actions tab"
+          # Add notification logic here (Slack, Discord, email, etc.)
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: crawl-jobs
+    if: success()
+    
+    steps:
+      - name: Verify crawl health
+        run: |
+          echo "Job crawl completed successfully at $(date)"
+          echo "Run ID: ${{ github.run_id }}"
+          # Add health check logic here (query database, send success notification, etc.)

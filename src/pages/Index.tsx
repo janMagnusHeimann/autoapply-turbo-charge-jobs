@@ -8,8 +8,9 @@ import { JobPreferences } from "@/components/dashboard/JobPreferences";
 import { ApplicationHistory } from "@/components/dashboard/ApplicationHistory";
 import { Settings } from "@/components/dashboard/Settings";
 import { ReviewQueue } from "@/components/dashboard/ReviewQueue";
+import { AutomatedAgent } from "@/components/dashboard/AutomatedAgent";
 
-export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'preferences' | 'queue' | 'history' | 'settings';
+export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'preferences' | 'agent' | 'queue' | 'history' | 'settings';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
@@ -25,6 +26,8 @@ const Index = () => {
         return <CompanyDirectory />;
       case 'preferences':
         return <JobPreferences />;
+      case 'agent':
+        return <AutomatedAgent />;
       case 'queue':
         return <ReviewQueue />;
       case 'history':

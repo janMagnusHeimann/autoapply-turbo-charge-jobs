@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  LogOut
+  LogOut,
+  Zap
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
@@ -29,6 +30,7 @@ const navigationItems = [
   { id: 'profile' as DashboardView, label: 'My Profile & CV Assets', icon: User },
   { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
   { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target },
+  { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
   { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock },
   { id: 'history' as DashboardView, label: 'Application History', icon: FileText },
   { id: 'settings' as DashboardView, label: 'Settings', icon: SettingsIcon },
