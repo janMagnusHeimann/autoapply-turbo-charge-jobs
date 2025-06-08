@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase } from "lucide-react";
+import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestrator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 interface Company {
@@ -37,6 +39,17 @@ export const CompanyDirectory = () => {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [jobDialogOpen, setJobDialogOpen] = useState(false);
   const [applyingToJob, setApplyingToJob] = useState<string | null>(null);
+  const [addCompanyDialogOpen, setAddCompanyDialogOpen] = useState(false);
+  const [addingCompany, setAddingCompany] = useState(false);
+  const [newCompany, setNewCompany] = useState({
+    name: '',
+    description: '',
+    website_url: '',
+    industry: '',
+    size_category: '',
+    headquarters: '',
+    founded_year: ''
+  });
 
   const excludedCompanies = userPreferences?.excluded_companies || [];
 
@@ -205,6 +218,59 @@ export const CompanyDirectory = () => {
     }
   };
 
+  const handleAddCompany = async () => {
+    if (!newCompany.name.trim()) {
+      toast.error("Company name is required");
+      return;
+    }
+
+    setAddingCompany(true);
+    try {
+      const companyData = {
+        name: newCompany.name.trim(),
+        description: newCompany.description.trim() || null,
+        website_url: newCompany.website_url.trim() || null,
+        industry: newCompany.industry || null,
+        size_category: newCompany.size_category || null,
+        headquarters: newCompany.headquarters.trim() || null,
+        founded_year: newCompany.founded_year ? parseInt(newCompany.founded_year) : null
+      };
+
+      const { data, error } = await supabase
+        .from('companies')
+        .insert(companyData)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Add to local state
+      setCompanies(prev => [data, ...prev]);
+      
+      // Reset form
+      setNewCompany({
+        name: '',
+        description: '',
+        website_url: '',
+        industry: '',
+        size_category: '',
+        headquarters: '',
+        founded_year: ''
+      });
+      
+      setAddCompanyDialogOpen(false);
+      toast.success(`Added ${data.name} to company directory`);
+      
+    } catch (error) {
+      console.error('Error adding company:', error);
+      toast.error("Failed to add company");
+    } finally {
+      setAddingCompany(false);
+    }
+  };
+
 
   const handleDiscoverJobs = async (company: Company) => {
     setDiscoveringJobs(company.id);
@@ -231,7 +297,7 @@ export const CompanyDirectory = () => {
   };
 
   const handleApplyToJob = async (job: JobListing, company: Company) => {
-    if (!user || !userProfile || !userPreferences) {
+    if (!user || !userPreferences) {
       toast.error("Please complete your profile setup first");
       return;
     }
@@ -240,7 +306,7 @@ export const CompanyDirectory = () => {
     try {
       // Generate tailored CV
       const cv = await aiAgentOrchestrator.generateTailoredCV(
-        userProfile, 
+        userPreferences, 
         userPreferences, 
         job, 
         company
@@ -319,11 +385,20 @@ export const CompanyDirectory = () => {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Company Directory</h1>
-        <p className="text-gray-400">
-          Browse and manage companies for job applications
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Company Directory</h1>
+          <p className="text-gray-400">
+            Browse and manage companies for job applications
+          </p>
+        </div>
+        <Button
+          onClick={() => setAddCompanyDialogOpen(true)}
+          className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add Company
+        </Button>
       </div>
 
       {/* Search and Filters */}
@@ -365,7 +440,7 @@ export const CompanyDirectory = () => {
 
       {/* Excluded Companies Alert */}
       {excludedCompanies.length > 0 && (
-        <Card className="bg-red-900/20 border-red-800">
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
             <CardTitle className="text-red-400 text-sm">
               {excludedCompanies.length} Companies Excluded
@@ -383,7 +458,7 @@ export const CompanyDirectory = () => {
                     {company.name}
                     <button
                       onClick={() => handleIncludeCompany(companyId)}
-                      className="ml-1 hover:bg-red-600 rounded-full p-0.5"
+                      className="ml-1 hover:bg-gray-600 rounded-full p-0.5"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -447,7 +522,7 @@ export const CompanyDirectory = () => {
                       variant="outline"
                       onClick={() => handleDiscoverJobs(company)}
                       disabled={discoveringJobs === company.id}
-                      className="text-blue-400 border-blue-400 hover:bg-blue-400/10 text-xs px-2 py-1"
+                      className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white text-xs px-2 py-1"
                     >
                       {discoveringJobs === company.id ? (
                         <>
@@ -468,7 +543,7 @@ export const CompanyDirectory = () => {
                         variant="outline"
                         onClick={() => handleIncludeCompany(company.id)}
                         disabled={updating === company.id}
-                        className="text-green-400 border-green-400 hover:bg-green-400/10"
+                        className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
                       >
                         {updating === company.id ? "Including..." : "Include"}
                       </Button>
@@ -499,6 +574,169 @@ export const CompanyDirectory = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Add Company Dialog */}
+      <Dialog open={addCompanyDialogOpen} onOpenChange={setAddCompanyDialogOpen}>
+        <DialogContent className="max-w-2xl bg-gray-900 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Add New Company
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company-name" className="text-sm text-gray-300">
+                  Company Name *
+                </Label>
+                <Input
+                  id="company-name"
+                  placeholder="Enter company name"
+                  value={newCompany.name}
+                  onChange={(e) => setNewCompany(prev => ({ ...prev, name: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="website" className="text-sm text-gray-300">
+                  Website URL
+                </Label>
+                <Input
+                  id="website"
+                  placeholder="https://company.com"
+                  value={newCompany.website_url}
+                  onChange={(e) => setNewCompany(prev => ({ ...prev, website_url: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm text-gray-300">
+                Description
+              </Label>
+              <Textarea
+                id="description"
+                placeholder="Brief description of the company"
+                value={newCompany.description}
+                onChange={(e) => setNewCompany(prev => ({ ...prev, description: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="industry" className="text-sm text-gray-300">
+                  Industry
+                </Label>
+                <Select 
+                  value={newCompany.industry} 
+                  onValueChange={(value) => setNewCompany(prev => ({ ...prev, industry: value }))}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="Select industry" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectItem value="Technology" className="text-white hover:bg-gray-700">Technology</SelectItem>
+                    <SelectItem value="Data & Analytics" className="text-white hover:bg-gray-700">Data & Analytics</SelectItem>
+                    <SelectItem value="Clean Energy" className="text-white hover:bg-gray-700">Clean Energy</SelectItem>
+                    <SelectItem value="Fintech" className="text-white hover:bg-gray-700">Fintech</SelectItem>
+                    <SelectItem value="Healthcare" className="text-white hover:bg-gray-700">Healthcare</SelectItem>
+                    <SelectItem value="Cybersecurity" className="text-white hover:bg-gray-700">Cybersecurity</SelectItem>
+                    <SelectItem value="Education" className="text-white hover:bg-gray-700">Education</SelectItem>
+                    <SelectItem value="Retail Tech" className="text-white hover:bg-gray-700">Retail Tech</SelectItem>
+                    <SelectItem value="Gaming" className="text-white hover:bg-gray-700">Gaming</SelectItem>
+                    <SelectItem value="Other" className="text-white hover:bg-gray-700">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="size" className="text-sm text-gray-300">
+                  Company Size
+                </Label>
+                <Select 
+                  value={newCompany.size_category} 
+                  onValueChange={(value) => setNewCompany(prev => ({ ...prev, size_category: value }))}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="Select company size" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectItem value="startup" className="text-white hover:bg-gray-700">Startup (1-50)</SelectItem>
+                    <SelectItem value="small" className="text-white hover:bg-gray-700">Small (51-200)</SelectItem>
+                    <SelectItem value="medium" className="text-white hover:bg-gray-700">Medium (201-1000)</SelectItem>
+                    <SelectItem value="large" className="text-white hover:bg-gray-700">Large (1001-5000)</SelectItem>
+                    <SelectItem value="enterprise" className="text-white hover:bg-gray-700">Enterprise (5000+)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="headquarters" className="text-sm text-gray-300">
+                  Headquarters
+                </Label>
+                <Input
+                  id="headquarters"
+                  placeholder="City, State/Country"
+                  value={newCompany.headquarters}
+                  onChange={(e) => setNewCompany(prev => ({ ...prev, headquarters: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="founded" className="text-sm text-gray-300">
+                  Founded Year
+                </Label>
+                <Input
+                  id="founded"
+                  type="number"
+                  placeholder="2020"
+                  min="1800"
+                  max={new Date().getFullYear()}
+                  value={newCompany.founded_year}
+                  onChange={(e) => setNewCompany(prev => ({ ...prev, founded_year: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setAddCompanyDialogOpen(false)}
+                className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddCompany}
+                disabled={addingCompany || !newCompany.name.trim()}
+                className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
+              >
+                {addingCompany ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Company
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Job Selection Dialog */}
       <Dialog open={jobDialogOpen} onOpenChange={setJobDialogOpen}>
@@ -532,7 +770,7 @@ export const CompanyDirectory = () => {
                     <Button
                       onClick={() => selectedCompany && handleApplyToJob(job, selectedCompany)}
                       disabled={applyingToJob === job.id}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                     >
                       {applyingToJob === job.id ? (
                         <>
@@ -581,7 +819,7 @@ export const CompanyDirectory = () => {
                         href={job.application_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                        className="text-sm text-gray-300 hover:text-white flex items-center gap-1"
                       >
                         {job.application_url}
                         <ExternalLink className="w-3 h-3" />

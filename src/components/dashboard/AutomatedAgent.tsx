@@ -86,10 +86,10 @@ export const AutomatedAgent = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'running': return 'bg-green-500';
-      case 'paused': return 'bg-yellow-500';
-      case 'completed': return 'bg-blue-500';
-      case 'failed': return 'bg-red-500';
+      case 'running': return 'bg-gray-600';
+      case 'paused': return 'bg-gray-500';
+      case 'completed': return 'bg-gray-700';
+      case 'failed': return 'bg-gray-800';
       default: return 'bg-gray-500';
     }
   };
@@ -128,7 +128,7 @@ export const AutomatedAgent = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           {!canStartAgent && (
-            <Alert className="border-yellow-600 bg-yellow-600/10">
+            <Alert className="border-gray-600 bg-gray-800/50">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-yellow-400">
                 Please complete your profile setup (industries and skills) before starting the agent.
@@ -141,7 +141,7 @@ export const AutomatedAgent = () => {
               <Button
                 onClick={handleStartAgent}
                 disabled={!canStartAgent || isStarting}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
               >
                 <Play className="w-4 h-4 mr-2" />
                 {isStarting ? "Starting..." : "Start Automated Agent"}
@@ -152,7 +152,7 @@ export const AutomatedAgent = () => {
                   <Button
                     onClick={handlePauseAgent}
                     variant="outline"
-                    className="border-yellow-500 text-yellow-500"
+                    className="!text-yellow-500 !border-yellow-500 !bg-transparent hover:!bg-yellow-500/10 hover:!text-yellow-400"
                   >
                     <Pause className="w-4 h-4 mr-2" />
                     Pause
@@ -160,7 +160,7 @@ export const AutomatedAgent = () => {
                 ) : (
                   <Button
                     onClick={handleResumeAgent}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Resume
@@ -195,7 +195,7 @@ export const AutomatedAgent = () => {
                   <p className="text-sm text-gray-400">Companies Processed</p>
                   <p className="text-2xl font-bold text-white">{session.companies_processed}</p>
                 </div>
-                <Target className="w-8 h-8 text-blue-400" />
+                <Target className="w-8 h-8 text-gray-400" />
               </div>
             </CardContent>
           </Card>
@@ -207,7 +207,7 @@ export const AutomatedAgent = () => {
                   <p className="text-sm text-gray-400">Applications Submitted</p>
                   <p className="text-2xl font-bold text-white">{session.applications_submitted}</p>
                 </div>
-                <Briefcase className="w-8 h-8 text-green-400" />
+                <Briefcase className="w-8 h-8 text-gray-400" />
               </div>
             </CardContent>
           </Card>
@@ -269,7 +269,7 @@ export const AutomatedAgent = () => {
             <p className="text-gray-300">{progress.message}</p>
             
             <div className="flex items-center justify-between text-sm">
-              <Badge variant="outline" className="border-blue-500 text-blue-400">
+              <Badge variant="outline" className="!text-white !border-gray-600 !bg-transparent">
                 Step: {progress.step}
               </Badge>
               <span className="text-gray-400">
@@ -318,25 +318,25 @@ export const AutomatedAgent = () => {
         <CardContent>
           <div className="space-y-3 text-sm text-gray-300">
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">1</div>
+              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">1</div>
               <div>
                 <strong>Company Matching:</strong> Finds companies that match your industry preferences and aren't excluded
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">2</div>
+              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">2</div>
               <div>
                 <strong>Job Discovery:</strong> Searches each company's career page for available positions
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">3</div>
+              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">3</div>
               <div>
                 <strong>CV Generation:</strong> Creates tailored CVs for each specific job and company
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">4</div>
+              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">4</div>
               <div>
                 <strong>Application Submission:</strong> Automatically fills out forms and submits applications
               </div>

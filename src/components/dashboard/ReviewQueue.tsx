@@ -214,7 +214,7 @@ export const ReviewQueue = () => {
                           href={application.company_url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
+                          className="text-gray-300 hover:text-white"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -227,7 +227,7 @@ export const ReviewQueue = () => {
                         {Math.round(application.match_score * 100)}% match
                       </Badge>
                     )}
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="!text-white !border-gray-600 !bg-transparent">
                       {application.source_platform}
                     </Badge>
                   </div>
@@ -278,7 +278,7 @@ export const ReviewQueue = () => {
                   <Button
                     onClick={() => handleApply(application)}
                     disabled={isProcessing}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                   >
                     {isProcessing ? 'Processing...' : 'Apply'}
                   </Button>
@@ -286,7 +286,7 @@ export const ReviewQueue = () => {
                     onClick={() => handleDiscard(application)}
                     disabled={isProcessing}
                     variant="outline"
-                    className="border-gray-600 hover:bg-gray-800"
+                    className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
                   >
                     Discard
                   </Button>
@@ -294,7 +294,7 @@ export const ReviewQueue = () => {
                     href={application.job_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1"
+                    className="text-gray-300 hover:text-white text-sm flex items-center gap-1"
                   >
                     View Job <ExternalLink className="h-3 w-3" />
                   </a>

@@ -4,13 +4,14 @@ import { Sidebar } from "@/components/Sidebar";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
 import { ProfileAssets } from "@/components/dashboard/ProfileAssets";
 import { CompanyDirectory } from "@/components/dashboard/CompanyDirectory";
+import { JobSources } from "@/components/dashboard/JobSources";
 import { JobPreferences } from "@/components/dashboard/JobPreferences";
 import { ApplicationHistory } from "@/components/dashboard/ApplicationHistory";
 import { Settings } from "@/components/dashboard/Settings";
 import { ReviewQueue } from "@/components/dashboard/ReviewQueue";
 import { AutomatedAgent } from "@/components/dashboard/AutomatedAgent";
 
-export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'preferences' | 'agent' | 'queue' | 'history' | 'settings';
+export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'sources' | 'preferences' | 'agent' | 'queue' | 'history' | 'settings';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
@@ -24,6 +25,8 @@ const Index = () => {
         return <ProfileAssets />;
       case 'companies':
         return <CompanyDirectory />;
+      case 'sources':
+        return <JobSources />;
       case 'preferences':
         return <JobPreferences />;
       case 'agent':

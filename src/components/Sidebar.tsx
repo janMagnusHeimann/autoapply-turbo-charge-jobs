@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Clock,
   LogOut,
-  Zap
+  Zap,
+  Globe
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
@@ -29,6 +30,7 @@ const navigationItems = [
   { id: 'dashboard' as DashboardView, label: 'Dashboard', icon: Home },
   { id: 'profile' as DashboardView, label: 'My Profile & CV Assets', icon: User },
   { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
+  { id: 'sources' as DashboardView, label: 'Job Sources', icon: Globe },
   { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target },
   { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
   { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock },
@@ -115,7 +117,7 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
               onClick={() => onViewChange(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 relative ${
                 isActive 
-                  ? 'bg-blue-600 text-white' 
+                  ? 'bg-gray-700 text-white border-l-2 border-gray-400' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
               title={collapsed ? item.label : undefined}

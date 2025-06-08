@@ -82,7 +82,7 @@ export const DashboardHome = () => {
             {quickStartItems.map((item) => (
               <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors">
                 {item.completed ? (
-                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <CheckCircle className="w-5 h-5 text-gray-400" />
                 ) : (
                   <Circle className="w-5 h-5 text-gray-400" />
                 )}

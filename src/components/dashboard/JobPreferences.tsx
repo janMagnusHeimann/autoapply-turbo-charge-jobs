@@ -258,7 +258,7 @@ export const JobPreferences = () => {
                   variant={remotePreference === option.value ? "default" : "outline"}
                   size="sm"
                   onClick={() => setRemotePreference(option.value as any)}
-                  className={remotePreference === option.value ? "bg-blue-600" : ""}
+                  className={remotePreference === option.value ? "bg-gray-600" : ""}
                 >
                   {option.label}
                 </Button>
@@ -360,7 +360,7 @@ export const JobPreferences = () => {
                   variant={companySizes.includes(size.value) ? "default" : "outline"}
                   size="sm"
                   onClick={() => handleCompanySizeToggle(size.value)}
-                  className={companySizes.includes(size.value) ? "bg-blue-600" : ""}
+                  className={companySizes.includes(size.value) ? "bg-gray-600" : ""}
                 >
                   {size.label}
                 </Button>
@@ -392,11 +392,11 @@ export const JobPreferences = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {skills.map((skill) => (
-                <Badge key={skill} variant="default" className="flex items-center gap-1 bg-green-600">
+                <Badge key={skill} variant="default" className="flex items-center gap-1 bg-gray-600">
                   {skill}
                   <button
                     onClick={() => handleRemoveSkill(skill)}
-                    className="ml-1 hover:bg-green-700 rounded-full p-0.5"
+                    className="ml-1 hover:bg-gray-700 rounded-full p-0.5"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -412,7 +412,7 @@ export const JobPreferences = () => {
         <Button 
           onClick={handleSavePreferences} 
           disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
+          className="bg-gray-700 hover:bg-gray-600 border border-gray-600 min-w-[140px]"
         >
           {saving ? (
             <>

@@ -497,10 +497,10 @@ export const ProfileAssets = () => {
     const colorMap: { [key: string]: string } = {
       'Student Organization': 'text-purple-400',
       'Certification': 'text-yellow-400',
-      'Volunteer Work': 'text-green-400',
+      'Volunteer Work': 'text-gray-400',
       'Award': 'text-yellow-400',
       'Competition': 'text-orange-400',
-      'Course': 'text-blue-400',
+      'Course': 'text-gray-400',
       'Project': 'text-indigo-400'
     };
     return colorMap[category] || 'text-purple-400';
@@ -528,19 +528,19 @@ export const ProfileAssets = () => {
 
       <Tabs defaultValue="experience" className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-gray-800">
-          <TabsTrigger value="experience" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          <TabsTrigger value="experience" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Experience
           </TabsTrigger>
-          <TabsTrigger value="education" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          <TabsTrigger value="education" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Education
           </TabsTrigger>
-          <TabsTrigger value="other" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          <TabsTrigger value="other" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Other
           </TabsTrigger>
-          <TabsTrigger value="repositories" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          <TabsTrigger value="repositories" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Repositories
           </TabsTrigger>
-          <TabsTrigger value="publications" className="text-gray-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+          <TabsTrigger value="publications" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Publications
           </TabsTrigger>
         </TabsList>
@@ -554,7 +554,7 @@ export const ProfileAssets = () => {
             </div>
             <Button
               onClick={() => setShowExperienceForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Experience
@@ -568,11 +568,11 @@ export const ProfileAssets = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center">
-                        <Briefcase className="w-6 h-6 text-blue-400" />
+                        <Briefcase className="w-6 h-6 text-gray-400" />
                       </div>
                       <div>
                         <CardTitle className="text-white text-lg">{exp.metadata?.position}</CardTitle>
-                        <p className="text-blue-400 font-medium">{exp.metadata?.company}</p>
+                        <p className="text-gray-400 font-medium">{exp.metadata?.company}</p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
@@ -637,7 +637,7 @@ export const ProfileAssets = () => {
             </div>
             <Button
               onClick={() => setShowEducationForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Education
@@ -651,11 +651,11 @@ export const ProfileAssets = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center">
-                        <GraduationCap className="w-6 h-6 text-green-400" />
+                        <GraduationCap className="w-6 h-6 text-gray-400" />
                       </div>
                       <div>
                         <CardTitle className="text-white text-lg">{edu.metadata?.degree} {edu.metadata?.field}</CardTitle>
-                        <p className="text-green-400 font-medium">{edu.metadata?.institution}</p>
+                        <p className="text-gray-400 font-medium">{edu.metadata?.institution}</p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
@@ -715,7 +715,7 @@ export const ProfileAssets = () => {
             </div>
             <Button
               onClick={() => setShowOtherForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Achievement
@@ -744,7 +744,7 @@ export const ProfileAssets = () => {
                               {formatDate(other.metadata?.startDate)} - {other.metadata?.current ? 'Present' : formatDate(other.metadata?.endDate)}
                             </span>
                             {other.metadata?.category && (
-                              <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
+                              <Badge variant="outline" className="!text-white !border-gray-600 !bg-transparent">
                                 {other.metadata.category}
                               </Badge>
                             )}
@@ -794,7 +794,7 @@ export const ProfileAssets = () => {
                           href={other.external_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-sm"
+                          className="inline-flex items-center gap-1 text-gray-300 hover:text-white text-sm"
                         >
                           View Certificate <ExternalLink className="w-3 h-3" />
                         </a>
@@ -819,7 +819,7 @@ export const ProfileAssets = () => {
               <Github className="w-12 h-12 text-gray-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-400 mb-2">Connect GitHub Account</h3>
               <p className="text-gray-500 mb-4">Import your repositories to showcase your coding projects</p>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
                 <Github className="w-4 h-4 mr-2" />
                 Connect GitHub
               </Button>
@@ -839,7 +839,7 @@ export const ProfileAssets = () => {
               <GraduationCap className="w-12 h-12 text-gray-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-400 mb-2">Connect Google Scholar</h3>
               <p className="text-gray-500 mb-4">Import your academic publications and research papers</p>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
                 <GraduationCap className="w-4 h-4 mr-2" />
                 Connect Scholar
               </Button>
@@ -959,13 +959,13 @@ export const ProfileAssets = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowExperienceForm(false)}
-                className="border-gray-700 text-white hover:bg-gray-800"
+                className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveExperience}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                 disabled={!experienceForm.company || !experienceForm.position}
               >
                 {editingExperience ? 'Update' : 'Add'} Experience
@@ -1086,13 +1086,13 @@ export const ProfileAssets = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowEducationForm(false)}
-                className="border-gray-700 text-white hover:bg-gray-800"
+                className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveEducation}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                 disabled={!educationForm.institution || !educationForm.degree}
               >
                 {editingEducation ? 'Update' : 'Add'} Education
@@ -1232,13 +1232,13 @@ export const ProfileAssets = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowOtherForm(false)}
-                className="border-gray-700 text-white hover:bg-gray-800"
+                className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveOther}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
                 disabled={!otherForm.title || !otherForm.organization || !otherForm.category}
               >
                 {editingOther ? 'Update' : 'Add'} Achievement

@@ -7,21 +7,25 @@ import { JobCrawler } from './crawler';
 import { CrawlerConfig } from './types';
 import { log } from './crawler/utils';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from parent directory
+dotenv.config({ path: '../.env' });
 
 /**
  * Creates crawler configuration from environment variables
  */
 function createConfig(): CrawlerConfig {
   const config: CrawlerConfig = {
-    supabaseUrl: process.env.SUPABASE_URL!,
-    supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY!,
-    githubToken: process.env.GITHUB_TOKEN,
+    supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!,
+    supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY!,
     maxConcurrentRequests: parseInt(process.env.MAX_CONCURRENT_REQUESTS || '5'),
     requestDelayMs: parseInt(process.env.REQUEST_DELAY_MS || '1000'),
     logLevel: (process.env.LOG_LEVEL as any) || 'info'
   };
+
+  // Add optional GitHub token if available
+  if (process.env.GITHUB_TOKEN) {
+    config.githubToken = process.env.GITHUB_TOKEN;
+  }
 
   // Validate required configuration
   if (!config.supabaseUrl) {
@@ -52,6 +56,9 @@ async function main(): Promise<void> {
     if (sourceArg) {
       // Crawl specific source
       const sourceName = sourceArg.split('=')[1];
+      if (!sourceName) {
+        throw new Error('Source name is required when using --source=<name>');
+      }
       log('info', `Crawling specific source: ${sourceName}`);
       
       const result = await crawler.crawlSourceByName(sourceName);

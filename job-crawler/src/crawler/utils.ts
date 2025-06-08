@@ -8,8 +8,19 @@ import { ParsedJob } from '../types';
  * Normalizes company names to prevent duplicates
  */
 export function normalizeCompanyName(name: string): string {
-  return name
-    .trim()
+  let cleanName = name.trim();
+  
+  // Remove company profile paths like "10up(/company-profiles/10up.md)"
+  if (cleanName.includes('(/company-profiles/')) {
+    cleanName = cleanName.split('(/company-profiles/')[0].trim();
+  }
+  
+  // Remove parenthetical information like "(Remote)"
+  if (cleanName.includes('(')) {
+    cleanName = cleanName.split('(')[0].trim();
+  }
+  
+  return cleanName
     .replace(/\s+/g, ' ')
     .replace(/\b(Inc|LLC|Corp|Corporation|Ltd|Limited|Co|Company)\b\.?$/i, '')
     .trim();

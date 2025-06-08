@@ -234,7 +234,7 @@ export const ApplicationHistory = () => {
                       <h3 className="text-lg font-semibold text-white">
                         Generated CV for this Application
                       </h3>
-                      <Button variant="outline" size="sm" className="ml-auto">
+                      <Button variant="outline" size="sm" className="ml-auto !text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white">
                         <ExternalLink className="w-4 h-4 mr-2" />
                         View Full CV
                       </Button>
