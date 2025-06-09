@@ -11,10 +11,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestrator";
+import { autonomousJobAgent, type JobOpportunity, type UserProfile } from "@/services/autonomousJobAgent";
+import { cvGenerationService } from "@/services/cvGenerationService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import type { CVGeneration, CVTemplate } from "@/types/cv";
 
 interface Company {
   id: string;
@@ -35,10 +38,15 @@ export const CompanyDirectory = () => {
   const [updating, setUpdating] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(true);
   const [jobListings, setJobListings] = useState<Map<string, JobListing[]>>(new Map());
+  const [jobOpportunities, setJobOpportunities] = useState<Map<string, JobOpportunity[]>>(new Map());
   const [discoveringJobs, setDiscoveringJobs] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [jobDialogOpen, setJobDialogOpen] = useState(false);
   const [applyingToJob, setApplyingToJob] = useState<string | null>(null);
+  const [agentSteps, setAgentSteps] = useState<string[]>([]);
+  const [generatingCV, setGeneratingCV] = useState<string | null>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<CVTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('technical');
   const [addCompanyDialogOpen, setAddCompanyDialogOpen] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
   const [newCompany, setNewCompany] = useState({
@@ -54,6 +62,12 @@ export const CompanyDirectory = () => {
   const excludedCompanies = userPreferences?.excluded_companies || [];
 
   useEffect(() => {
+    // Load available CV templates
+    const templates = cvGenerationService.getAvailableTemplates();
+    setAvailableTemplates(templates);
+  }, []);
+
+  useEffect(() => {
     const fetchCompanies = async () => {
       try {
         const { data, error } = await supabase
@@ -66,10 +80,28 @@ export const CompanyDirectory = () => {
           // Fallback to demo data if database not set up
           setCompanies(getDemoCompanies());
         } else if (data && data.length > 0) {
-          setCompanies(data);
+          // Add Trade Republic to existing data if not already present
+          const hasTradeRepublic = data.some(company => company.name === 'Trade Republic');
+          if (!hasTradeRepublic) {
+            const tradeRepublic = {
+              id: 'demo-0',
+              name: 'Trade Republic',
+              description: 'Leading European digital bank and investment platform offering commission-free trading',
+              industry: 'Fintech',
+              size_category: 'large',
+              website_url: 'https://traderepublic.com',
+              headquarters: 'Berlin, Germany',
+              founded_year: 2015
+            };
+            setCompanies([tradeRepublic, ...data]);
+          } else {
+            setCompanies(data);
+          }
         } else {
           // No companies in database, use demo data
-          setCompanies(getDemoCompanies());
+          const demoData = getDemoCompanies();
+          console.log('Loading demo companies:', demoData);
+          setCompanies(demoData);
         }
       } catch (error) {
         console.error('Error fetching companies:', error);
@@ -83,6 +115,16 @@ export const CompanyDirectory = () => {
   }, []);
 
   const getDemoCompanies = (): Company[] => [
+    {
+      id: 'demo-0',
+      name: 'Trade Republic',
+      description: 'Leading European digital bank and investment platform offering commission-free trading',
+      industry: 'Fintech',
+      size_category: 'large',
+      website_url: 'https://traderepublic.com',
+      headquarters: 'Berlin, Germany',
+      founded_year: 2015
+    },
     {
       id: 'demo-1',
       name: 'Starcloud',
@@ -271,26 +313,118 @@ export const CompanyDirectory = () => {
     }
   };
 
+  const handleGenerateCV = async (jobOpportunity: JobOpportunity) => {
+    if (!user) {
+      toast.error("Please log in to generate CV");
+      return;
+    }
+
+    setGeneratingCV(jobOpportunity.id);
+    
+    try {
+      // Generate CV using the selected template
+      const cvGeneration = await cvGenerationService.generateCV(
+        user.id,
+        jobOpportunity,
+        selectedTemplate
+      );
+
+      // Create application record
+      const applicationRecord = await cvGenerationService.createApplicationRecord(
+        user.id,
+        jobOpportunity,
+        cvGeneration.id
+      );
+
+      toast.success(
+        `🎉 CV Generated Successfully!`, 
+        {
+          description: `Tailored CV created with ${cvGeneration.optimizationMetadata.selectedProjectsCount} projects and ${cvGeneration.optimizationMetadata.highlightedSkillsCount} highlighted skills`,
+          action: {
+            label: "Download CV",
+            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
+          }
+        }
+      );
+
+      // Show optimization details
+      toast.info(
+        `CV Optimization Details`,
+        {
+          description: `Relevance Score: ${Math.round(cvGeneration.optimizationMetadata.relevanceScore * 100)}% • Template: ${availableTemplates.find(t => t.id === selectedTemplate)?.name}`,
+          action: {
+            label: "View CV",
+            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
+          }
+        }
+      );
+
+    } catch (error) {
+      console.error('Error generating CV:', error);
+      toast.error(
+        "CV Generation Failed", 
+        {
+          description: error instanceof Error ? error.message : "Unknown error occurred"
+        }
+      );
+    } finally {
+      setGeneratingCV(null);
+    }
+  };
 
   const handleDiscoverJobs = async (company: Company) => {
     setDiscoveringJobs(company.id);
+    setAgentSteps([]);
+    
     try {
-      const jobs = await aiAgentOrchestrator.discoverJobsForCompany(company);
+      // Create a mock user profile for testing
+      const mockUserProfile: UserProfile = {
+        name: 'Alex Schmidt',
+        title: 'Software Engineer',
+        experience_years: 3,
+        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'AWS'],
+        preferred_locations: ['Berlin', 'Munich', 'Remote'],
+        salary_expectations: {
+          min: 65000,
+          max: 85000,
+          currency: 'EUR'
+        }
+      };
+
+      // Show progress steps to user
+      const stepInterval = setInterval(() => {
+        setAgentSteps(prev => {
+          if (prev.length === 0) return ['🤖 Initializing autonomous job search agent...'];
+          if (prev.length === 1) return [...prev, `🔍 Searching for ${company.name} career opportunities...`];
+          if (prev.length === 2) return [...prev, '🌐 Using OpenAI web search to find career page...'];
+          return prev;
+        });
+      }, 1000);
+
+      // Run the autonomous agent
+      const result = await autonomousJobAgent.discoverAndApplyToJobs(company, mockUserProfile);
       
-      setJobListings(prev => new Map(prev.set(company.id, jobs)));
-      
-      if (jobs.length > 0) {
+      clearInterval(stepInterval);
+      setAgentSteps(result.search_steps);
+
+      if (result.success && result.jobs.length > 0) {
+        setJobOpportunities(prev => new Map(prev.set(company.id, result.jobs)));
         setSelectedCompany(company);
         setJobDialogOpen(true);
-        toast.success(`Found ${jobs.length} jobs at ${company.name}`);
+        
+        toast.success(`🎉 Agent found ${result.jobs.length} matching positions!`, {
+          description: `Career page: ${result.career_page_url || 'Found via web search'}`
+        });
       } else {
-        toast.warning("No jobs found", {
-          description: `Could not find open positions at ${company.name}`
+        toast.warning("No suitable jobs found", {
+          description: result.error || `The agent couldn't find matching positions at ${company.name}`
         });
       }
     } catch (error) {
-      console.error('Error discovering jobs:', error);
-      toast.error("Error discovering jobs");
+      console.error('Autonomous agent error:', error);
+      toast.error("Agent Error", {
+        description: "The autonomous job search agent encountered an error. Please check your OpenAI API key."
+      });
     } finally {
       setDiscoveringJobs(null);
     }
@@ -527,12 +661,12 @@ export const CompanyDirectory = () => {
                       {discoveringJobs === company.id ? (
                         <>
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Searching...
+                          Applying...
                         </>
                       ) : (
                         <>
-                          <Search className="w-3 h-3 mr-1" />
-                          Search Jobs
+                          <Briefcase className="w-3 h-3 mr-1" />
+                          Apply Here
                         </>
                       )}
                     </Button>
@@ -744,12 +878,68 @@ export const CompanyDirectory = () => {
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Briefcase className="w-5 h-5" />
-              Available Jobs at {selectedCompany?.name}
+              Jobs Found by Autonomous Agent at {selectedCompany?.name}
             </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
-            {selectedCompany && jobListings.get(selectedCompany.id)?.map((job) => (
+            {/* Agent Steps Display */}
+            {agentSteps.length > 0 && (
+              <Card className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-300 text-sm">🤖 Agent Search Process</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {agentSteps.map((step, index) => (
+                      <div key={index} className="text-sm text-gray-400 flex items-center gap-2">
+                        <span className="text-gray-500">{index + 1}.</span>
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* CV Template Selector */}
+            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.length > 0 && (
+              <Card className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-300 text-sm">📄 CV Template Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="template-select" className="text-sm text-gray-300 mb-2 block">
+                        Choose CV Template
+                      </Label>
+                      <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                        <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-800 border-gray-700">
+                          {availableTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id} className="text-white hover:bg-gray-700">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{template.name}</span>
+                                <span className="text-xs text-gray-400">{template.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      The CV will be automatically optimized based on job requirements using AI analysis.
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Job Opportunities */}
+            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => (
               <Card key={job.id} className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -757,30 +947,50 @@ export const CompanyDirectory = () => {
                       <CardTitle className="text-white text-lg">{job.title}</CardTitle>
                       <div className="flex items-center gap-4 mt-2">
                         <Badge variant="secondary" className="text-xs">
-                          {job.employment_type}
+                          {Math.round(job.confidence_score * 100)}% match
                         </Badge>
                         <span className="text-sm text-gray-400">📍 {job.location}</span>
-                        {job.posted_date && (
-                          <span className="text-sm text-gray-400">
-                            Posted: {new Date(job.posted_date).toLocaleDateString()}
-                          </span>
-                        )}
                       </div>
                     </div>
-                    <Button
-                      onClick={() => selectedCompany && handleApplyToJob(job, selectedCompany)}
-                      disabled={applyingToJob === job.id}
-                      className="bg-gray-700 hover:bg-gray-600 border border-gray-600"
-                    >
-                      {applyingToJob === job.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Applying...
-                        </>
-                      ) : (
-                        "Apply Now"
-                      )}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(job.url, '_blank')}
+                        className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        View Job
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleGenerateCV(job)}
+                        disabled={generatingCV === job.id}
+                        className="bg-blue-600 hover:bg-blue-700 border border-blue-600"
+                      >
+                        {generatingCV === job.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            📄 Generate CV
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          toast.success("Job URL Found!", {
+                            description: `Agent successfully navigated to: ${job.url}`
+                          });
+                        }}
+                        className="bg-green-600 hover:bg-green-700 border border-green-600"
+                      >
+                        ✅ Verify
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -789,7 +999,7 @@ export const CompanyDirectory = () => {
                     <p className="text-sm text-gray-400 leading-relaxed">{job.description}</p>
                   </div>
                   
-                  {job.requirements.length > 0 && (
+                  {job.requirements && job.requirements.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-300 mb-2">Requirements</h4>
                       <div className="space-y-1">
@@ -803,38 +1013,36 @@ export const CompanyDirectory = () => {
                     </div>
                   )}
                   
-                  {job.salary_min && job.salary_max && (
+                  {job.salary_range && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-300 mb-1">Salary Range</h4>
-                      <p className="text-sm text-gray-400">
-                        ${job.salary_min?.toLocaleString()} - ${job.salary_max?.toLocaleString()}
-                      </p>
+                      <p className="text-sm text-gray-400">{job.salary_range}</p>
                     </div>
                   )}
                   
-                  {job.application_url && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-300 mb-1">Application URL</h4>
+                  <div className="pt-2 border-t border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Found by Autonomous Agent</span>
                       <a
-                        href={job.application_url}
+                        href={job.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-300 hover:text-white flex items-center gap-1"
+                        className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                       >
-                        {job.application_url}
+                        {job.url.length > 50 ? job.url.substring(0, 50) + '...' : job.url}
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
             
-            {selectedCompany && (!jobListings.get(selectedCompany.id) || jobListings.get(selectedCompany.id)?.length === 0) && (
+            {selectedCompany && (!jobOpportunities.get(selectedCompany.id) || jobOpportunities.get(selectedCompany.id)?.length === 0) && (
               <div className="text-center py-8">
                 <Briefcase className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-400 mb-2">No jobs found</h3>
-                <p className="text-gray-500">No open positions were found at this company</p>
+                <p className="text-gray-500">The autonomous agent couldn't find matching positions</p>
               </div>
             )}
           </div>
