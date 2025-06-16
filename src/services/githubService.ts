@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { supabase } from "@/integrations/supabase/client";
+import { saveToSupabaseService, loadFromSupabaseService } from "./supabaseService";
 
 export interface GitHubRepository {
   id: number;
@@ -412,10 +413,21 @@ export class GitHubService {
    */
   static async getSelectedRepositories(userId: string): Promise<SelectedRepository[]> {
     try {
-      // In development mode with bypass auth, use localStorage
+      // In development mode with bypass auth, try Supabase first, then localStorage
       if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+        // Try to load from Supabase first, then fallback to localStorage
+        const supabaseData = await loadFromSupabaseService<SelectedRepository>('selected_repositories', userId);
+        if (supabaseData !== null) {
+          console.log('📥 Loaded from Supabase database');
+          return supabaseData;
+        }
+        
+        // Fallback to localStorage
         const saved = localStorage.getItem('selected_repositories');
-        return saved ? JSON.parse(saved) : [];
+        const localData = saved ? JSON.parse(saved) : [];
+        console.log('📱 Loaded from localStorage:', localData.length, 'repositories');
+        console.log('📱 Sample data:', localData.slice(0, 2));
+        return localData;
       }
 
       const { data, error } = await supabase
@@ -440,10 +452,18 @@ export class GitHubService {
    */
   static async saveSelectedRepositories(userId: string, repositories: SelectedRepository[]): Promise<void> {
     try {
-      // In development mode with bypass auth, use localStorage
+      // In development mode with bypass auth, use localStorage and also try Supabase
       if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
         localStorage.setItem('selected_repositories', JSON.stringify(repositories));
         console.log(`Development mode: Saved ${repositories.length} selected repositories to localStorage`);
+        
+        // Also try to save to Supabase using service client
+        const saved = await saveToSupabaseService('selected_repositories', repositories, userId);
+        if (saved) {
+          console.log('✅ Also saved to Supabase database');
+        } else {
+          console.log('⚠️ Supabase save failed, using localStorage only');
+        }
         return;
       }
 
@@ -513,13 +533,28 @@ export class GitHubService {
   static async getRepositoriesWithSelectionStatus(userId: string, githubRepositories: GitHubRepository[]): Promise<(GitHubRepository & { isSelected: boolean; userDescription: string })[]> {
     try {
       const selectedRepos = await this.getSelectedRepositories(userId);
+      console.log(`🔍 Loading selection status for ${githubRepositories.length} repos, found ${selectedRepos.length} saved selections`);
+      
       const selectedMap = new Map(selectedRepos.map(repo => [repo.github_repo_id, repo]));
 
-      return githubRepositories.map(repo => ({
-        ...repo,
-        isSelected: selectedMap.has(repo.id) && selectedMap.get(repo.id)?.is_selected === true,
-        userDescription: selectedMap.get(repo.id)?.user_description || '',
-      }));
+      const result = githubRepositories.map(repo => {
+        const savedRepo = selectedMap.get(repo.id);
+        const isSelected = savedRepo?.is_selected === true;
+        const userDescription = savedRepo?.user_description || '';
+        
+        if (isSelected) {
+          console.log(`✅ Repo ${repo.name} is selected with description: "${userDescription.substring(0, 50)}..."`);
+        }
+        
+        return {
+          ...repo,
+          isSelected,
+          userDescription,
+        };
+      });
+
+      console.log(`📊 Final result: ${result.filter(r => r.isSelected).length} selected repositories`);
+      return result;
     } catch (error) {
       console.error('Error getting repositories with selection status:', error);
       return githubRepositories.map(repo => ({

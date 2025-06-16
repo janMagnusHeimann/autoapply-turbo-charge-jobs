@@ -95,18 +95,25 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
     if (!user) return;
 
     try {
+      console.log('🔄 Loading GitHub data for user:', user.id);
       const token = await GitHubService.getGitHubToken(user.id);
-      if (!token) return;
+      if (!token) {
+        console.log('❌ No GitHub token found');
+        return;
+      }
 
+      console.log('✅ GitHub token found, fetching repositories...');
       // Load GitHub user data and repositories
       const [githubUserData, allRepos] = await Promise.all([
         GitHubService.getUser(token),
         GitHubService.getUserRepositories(token)
       ]);
 
+      console.log(`📦 Fetched ${allRepos.length} repositories from GitHub`);
       // Get repositories with selection status
       const reposWithSelection = await GitHubService.getRepositoriesWithSelectionStatus(user.id, allRepos);
 
+      console.log(`🎯 Final repositories with selection:`, reposWithSelection.filter(r => r.isSelected).length, 'selected');
       setGitHubUser(githubUserData);
       setRepositories(reposWithSelection);
       setStats(GitHubService.getRepositoryStats(allRepos));
@@ -205,7 +212,7 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
       setSaving(true);
       
       const selectedRepos = repositories
-        .filter(repo => repo.isSelected && repo.userDescription.trim())
+        .filter(repo => repo.isSelected)
         .map(repo => ({
           user_id: user.id,
           github_repo_id: repo.id,
@@ -221,6 +228,8 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
           is_private: repo.private,
           is_selected: true,
         }));
+
+      console.log(`💾 Saving ${selectedRepos.length} repositories:`, selectedRepos.map(r => r.repo_name));
 
       await GitHubService.saveSelectedRepositories(user.id, selectedRepos);
       
@@ -429,6 +438,37 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
           <p className="text-sm text-muted-foreground mb-4">
             Select repositories you want to include in your professional portfolio. Add descriptions explaining your achievements, skills demonstrated, and impact of each project.
           </p>
+
+          {/* Selected Repositories Summary */}
+          {selectedCount > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Selected Projects:</h4>
+              <div className="space-y-2">
+                {repositories
+                  .filter(repo => repo.isSelected)
+                  .map((repo) => (
+                    <div
+                      key={repo.id}
+                      className="flex items-start justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h5 className="font-medium text-sm truncate">{repo.name}</h5>
+                          <Badge variant="outline" className="text-xs">{repo.language || 'N/A'}</Badge>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Star className="h-3 w-3" />
+                            {repo.stargazers_count}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {repo.userDescription || repo.description || 'No description provided'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
