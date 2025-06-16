@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { SelectiveGitHubIntegration } from "./SelectiveGitHubIntegration";
+import { PublicationsIntegration } from "./PublicationsIntegration";
 
 interface CVAsset {
   id: string;
@@ -822,20 +823,10 @@ export const ProfileAssets = () => {
         <TabsContent value="publications" className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white">Academic Publications</h2>
-            <p className="text-gray-400">Connect your Google Scholar profile to import publications</p>
+            <p className="text-gray-400">Connect your Google Scholar profile to import and manage publications</p>
           </div>
           
-          <Card className="bg-gray-900 border-gray-800">
-            <CardContent className="text-center py-12">
-              <GraduationCap className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-400 mb-2">Connect Google Scholar</h3>
-              <p className="text-gray-500 mb-4">Import your academic publications and research papers</p>
-              <Button className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
-                <GraduationCap className="w-4 h-4 mr-2" />
-                Connect Scholar
-              </Button>
-            </CardContent>
-          </Card>
+          <PublicationsIntegration onPublicationsSync={fetchAssets} />
         </TabsContent>
       </Tabs>
 
