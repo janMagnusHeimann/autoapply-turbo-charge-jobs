@@ -282,18 +282,18 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
 
   if (loading) {
     return (
-      <Card>
+      <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
-            <CardTitle>GitHub Portfolio Integration</CardTitle>
+            <Github className="h-5 w-5 text-white" />
+            <CardTitle className="text-white">GitHub Portfolio Integration</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-4 w-3/4 bg-gray-700" />
+            <Skeleton className="h-4 w-1/2 bg-gray-700" />
+            <Skeleton className="h-10 w-32 bg-gray-700" />
           </div>
         </CardContent>
       </Card>
@@ -302,24 +302,24 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
 
   if (!isConnected) {
     return (
-      <Card>
+      <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
-            <CardTitle>GitHub Portfolio Integration</CardTitle>
+            <Github className="h-5 w-5 text-white" />
+            <CardTitle className="text-white">GitHub Portfolio Integration</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
+          <Alert className="bg-gray-800 border-gray-700">
+            <Info className="h-4 w-4 text-blue-400" />
+            <AlertDescription className="text-gray-300">
               Connect your GitHub account to select repositories and add descriptions that will be used for autonomous CV creation and job applications.
             </AlertDescription>
           </Alert>
           
           <div className="space-y-2">
-            <h4 className="text-sm font-medium">What you can do:</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
+            <h4 className="text-sm font-medium text-white">What you can do:</h4>
+            <ul className="text-sm text-gray-400 space-y-1">
               <li>• Select specific repositories to include in your professional profile</li>
               <li>• Add detailed descriptions of your achievements in each project</li>
               <li>• Highlight skills and technologies you've mastered</li>
@@ -327,7 +327,7 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
             </ul>
           </div>
           
-          <Button onClick={handleConnect} className="w-full">
+          <Button onClick={handleConnect} className="w-full bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
             <Github className="h-4 w-4 mr-2" />
             Connect GitHub Account
           </Button>
@@ -339,21 +339,21 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
   return (
     <div className="space-y-6">
       {/* GitHub Account Info */}
-      <Card>
+      <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Github className="h-5 w-5" />
-              <CardTitle>GitHub Account</CardTitle>
+              <Github className="h-5 w-5 text-white" />
+              <CardTitle className="text-white">GitHub Account</CardTitle>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleSync}
                 disabled={syncing}
-                variant="outline"
+                className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
                 size="sm"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 text-white ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Syncing...' : 'Sync'}
               </Button>
               <Button
@@ -376,16 +376,16 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                 className="w-16 h-16 rounded-full"
               />
               <div className="space-y-1">
-                <h3 className="font-medium">
+                <h3 className="font-medium text-white">
                   {githubUser.name || githubUser.login}
                 </h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-gray-400">
                   @{githubUser.login}
                 </p>
                 {githubUser.bio && (
-                  <p className="text-sm text-muted-foreground">{githubUser.bio}</p>
+                  <p className="text-sm text-gray-400">{githubUser.bio}</p>
                 )}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-4 text-sm text-gray-400">
                   <span>{githubUser.public_repos} repositories</span>
                   <span>{githubUser.followers} followers</span>
                   <span>{githubUser.following} following</span>
@@ -397,15 +397,15 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
       </Card>
 
       {/* Selection Summary */}
-      <Card>
+      <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-white">
+              <CheckCircle className="h-5 w-5 text-green-400" />
               Portfolio Selection
             </CardTitle>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-gray-400">
                 {selectedCount} of {repositories.length} selected
               </span>
               {hasUnsavedChanges && (
@@ -413,11 +413,12 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                   onClick={handleSaveSelections}
                   disabled={saving || selectedCount === 0}
                   size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin text-white" />
                   ) : (
-                    <Save className="h-4 w-4 mr-2" />
+                    <Save className="h-4 w-4 mr-2 text-white" />
                   )}
                   {saving ? 'Saving...' : 'Save Selections'}
                 </Button>
@@ -427,40 +428,40 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
         </CardHeader>
         <CardContent>
           {hasUnsavedChanges && (
-            <Alert className="mb-4">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
+            <Alert className="mb-4 bg-gray-800 border-gray-700">
+              <Info className="h-4 w-4 text-orange-400" />
+              <AlertDescription className="text-gray-300">
                 You have unsaved changes. Click "Save Selections" to save your repository choices and descriptions.
               </AlertDescription>
             </Alert>
           )}
           
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-sm text-gray-400 mb-4">
             Select repositories you want to include in your professional portfolio. Add descriptions explaining your achievements, skills demonstrated, and impact of each project.
           </p>
 
           {/* Selected Repositories Summary */}
           {selectedCount > 0 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium">Selected Projects:</h4>
+              <h4 className="text-sm font-medium text-white">Selected Projects:</h4>
               <div className="space-y-2">
                 {repositories
                   .filter(repo => repo.isSelected)
                   .map((repo) => (
                     <div
                       key={repo.id}
-                      className="flex items-start justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg"
+                      className="flex items-start justify-between p-3 bg-gray-800 border border-gray-700 rounded-lg"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h5 className="font-medium text-sm truncate">{repo.name}</h5>
-                          <Badge variant="outline" className="text-xs">{repo.language || 'N/A'}</Badge>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <h5 className="font-medium text-sm truncate text-white">{repo.name}</h5>
+                          <Badge variant="outline" className="text-xs border-gray-600 text-gray-300 bg-gray-800">{repo.language || 'N/A'}</Badge>
+                          <div className="flex items-center gap-1 text-xs text-gray-400">
                             <Star className="h-3 w-3" />
                             {repo.stargazers_count}
                           </div>
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
+                        <p className="text-xs text-gray-400 line-clamp-2">
                           {repo.userDescription || repo.description || 'No description provided'}
                         </p>
                       </div>
@@ -473,10 +474,10 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
       </Card>
 
       {/* Repository Selection List */}
-      <Card>
+      <Card className="bg-gray-900 border-gray-800">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Code className="h-5 w-5 text-blue-400" />
             Select Your Best Projects
           </CardTitle>
         </CardHeader>
@@ -486,7 +487,7 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
               <div
                 key={repo.id}
                 className={`border rounded-lg p-4 transition-all ${
-                  repo.isSelected ? 'border-primary bg-primary/5' : 'border-border'
+                  repo.isSelected ? 'border-blue-500 bg-gray-800' : 'border-gray-700 bg-gray-800/50'
                 }`}
               >
                 <div className="space-y-4">
@@ -498,23 +499,24 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                       onCheckedChange={(checked) => 
                         handleRepositoryToggle(repo.id, checked as boolean)
                       }
-                      className="mt-1"
+                      className="mt-1 border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
                     />
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Label
                             htmlFor={`repo-${repo.id}`}
-                            className="font-medium cursor-pointer"
+                            className="font-medium cursor-pointer text-white"
                           >
                             {repo.name}
                           </Label>
-                          <Badge variant="outline">{repo.language || 'N/A'}</Badge>
-                          {repo.private && <Badge variant="secondary">Private</Badge>}
+                          <Badge variant="outline" className="border-gray-600 text-gray-300 bg-gray-800">{repo.language || 'N/A'}</Badge>
+                          {repo.private && <Badge variant="secondary" className="bg-orange-600 text-white">Private</Badge>}
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="text-gray-400 hover:text-white hover:bg-gray-700"
                           asChild
                         >
                           <a
@@ -528,12 +530,12 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                       </div>
                       
                       {repo.description && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-gray-400">
                           {repo.description}
                         </p>
                       )}
                       
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 text-sm text-gray-400">
                         <div className="flex items-center gap-1">
                           <Star className="h-3 w-3" />
                           {repo.stargazers_count}
@@ -563,7 +565,7 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                   {/* Description Input - Only show when selected */}
                   {repo.isSelected && (
                     <div className="ml-8 space-y-2">
-                      <Label htmlFor={`desc-${repo.id}`} className="text-sm font-medium">
+                      <Label htmlFor={`desc-${repo.id}`} className="text-sm font-medium text-white">
                         Describe your achievements with this project *
                       </Label>
                       <Textarea
@@ -571,10 +573,10 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                         placeholder="Explain what you built, technologies used, challenges solved, and impact achieved. This will be used in your CV and job applications. E.g., 'Built a full-stack e-commerce platform using React and Node.js, handling 10k+ users with 99.9% uptime. Implemented advanced caching strategies reducing load times by 40%.'"
                         value={repo.userDescription}
                         onChange={(e) => handleDescriptionChange(repo.id, e.target.value)}
-                        className="min-h-[100px] resize-none"
+                        className="min-h-[100px] resize-none bg-gray-800 border-gray-700 text-white placeholder-gray-400"
                         required={repo.isSelected}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-gray-400">
                         Focus on: technical skills demonstrated, problems solved, measurable impact, and technologies mastered.
                       </p>
                     </div>
@@ -586,13 +588,13 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
 
           {repositories.length === 0 && (
             <div className="text-center py-8">
-              <Code className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No repositories found</h3>
-              <p className="text-muted-foreground mb-4">
+              <Code className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2 text-white">No repositories found</h3>
+              <p className="text-gray-400 mb-4">
                 Click "Sync" to fetch your latest repositories from GitHub.
               </p>
-              <Button onClick={handleSync} disabled={syncing}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+              <Button onClick={handleSync} disabled={syncing} className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600">
+                <RefreshCw className={`h-4 w-4 mr-2 text-white ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Syncing...' : 'Sync Repositories'}
               </Button>
             </div>
@@ -602,12 +604,12 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
 
       {/* Save Actions */}
       {selectedCount > 0 && (
-        <Card>
+        <Card className="bg-gray-900 border-gray-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium">Ready to save your portfolio?</h4>
-                <p className="text-sm text-muted-foreground">
+                <h4 className="font-medium text-white">Ready to save your portfolio?</h4>
+                <p className="text-sm text-gray-400">
                   {selectedCount} repositories selected with descriptions
                 </p>
               </div>
@@ -615,11 +617,12 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
                 onClick={handleSaveSelections}
                 disabled={saving || !hasUnsavedChanges}
                 size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-white" />
                 ) : (
-                  <Save className="h-4 w-4 mr-2" />
+                  <Save className="h-4 w-4 mr-2 text-white" />
                 )}
                 {saving ? 'Saving Portfolio...' : hasUnsavedChanges ? 'Save Portfolio' : 'Portfolio Saved'}
               </Button>
