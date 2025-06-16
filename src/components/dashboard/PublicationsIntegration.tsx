@@ -126,38 +126,17 @@ export const PublicationsIntegration = ({ onPublicationsSync }: PublicationsInte
         };
         setScholarAuthor(authorData);
 
-        // For demo purposes, we'll use mock publications
-        // In production, this would scrape/fetch actual publications
-        const mockPublications: GoogleScholarPublication[] = [
-          {
-            id: "pub_1",
-            title: "Machine Learning Applications in Data Science",
-            authors: [connectionData.author_name || "Author"],
-            publication_venue: "Journal of Computer Science",
-            publication_year: 2023,
-            citation_count: 45,
-            pdf_link: "https://example.com/paper1.pdf",
-            scholar_link: `https://scholar.google.com/citations?view_op=view_citation&user=${connectionData.scholar_author_id}`,
-            abstract: "This paper explores the applications of machine learning in modern data science...",
-            keywords: ["machine learning", "data science", "artificial intelligence"],
-            publication_type: "journal",
-          },
-          {
-            id: "pub_2",
-            title: "Neural Networks for Image Recognition",
-            authors: [connectionData.author_name || "Author", "Co-Author"],
-            publication_venue: "International Conference on AI",
-            publication_year: 2022,
-            citation_count: 32,
-            scholar_link: `https://scholar.google.com/citations?view_op=view_citation&user=${connectionData.scholar_author_id}`,
-            keywords: ["neural networks", "image recognition", "computer vision"],
-            publication_type: "conference",
-          },
-        ];
-
-        const pubsWithSelection = await GoogleScholarService.getPublicationsWithSelectionStatus(user.id, mockPublications);
+        // Use the actual scraper to get real/improved publications
+        console.log('🔄 Scraping publications from profile:', connectionData.scholar_profile_url);
+        
+        const { author: scrapedAuthor, publications: scrapedPublications } = await GoogleScholarService.scrapeScholarProfile(connectionData.scholar_profile_url);
+        
+        // Update author data with freshly scraped info
+        setScholarAuthor(scrapedAuthor);
+        
+        const pubsWithSelection = await GoogleScholarService.getPublicationsWithSelectionStatus(user.id, scrapedPublications);
         setPublications(pubsWithSelection);
-        setStats(GoogleScholarService.getPublicationStats(mockPublications));
+        setStats(GoogleScholarService.getPublicationStats(scrapedPublications));
       }
       
       setHasUnsavedChanges(false);
