@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { aiAgentOrchestrator, type AgentSession, type AgentProgress } from "@/services/aiAgentOrchestrator";
+import { enhancedAIAgentOrchestrator, type AgentSession, type AgentProgress } from "@/services/enhancedAIAgentOrchestrator";
 import { toast } from "sonner";
 
 export const AutomatedAgent = () => {
@@ -17,50 +17,74 @@ export const AutomatedAgent = () => {
 
   useEffect(() => {
     // Set up progress callback
-    aiAgentOrchestrator.setProgressCallback((progressUpdate) => {
+    enhancedAIAgentOrchestrator.setProgressCallback((progressUpdate) => {
       setProgress(progressUpdate);
     });
 
     // Check for existing session
-    const existingSession = aiAgentOrchestrator.getCurrentSession();
+    const existingSession = enhancedAIAgentOrchestrator.getCurrentSession();
     if (existingSession) {
       setSession(existingSession);
     }
   }, []);
 
   const handleStartAgent = async () => {
+    console.log('🎯 [UI DEBUG] Starting agent button clicked');
+    
     if (!user) {
+      console.log('❌ [UI DEBUG] No user found');
       toast.error("Please log in to start the agent");
       return;
     }
 
     if (!userProfile || !userPreferences) {
+      console.log('❌ [UI DEBUG] Missing profile data:', { userProfile: !!userProfile, userPreferences: !!userPreferences });
       toast.error("Please complete your profile setup first");
       return;
     }
 
+    console.log('✅ [UI DEBUG] User validation passed:', {
+      userId: user.id,
+      userEmail: user.email,
+      profileName: userProfile.full_name,
+      skillsCount: userPreferences.skills.length,
+      industriesCount: userPreferences.preferred_industries.length
+    });
+
     setIsStarting(true);
     try {
-      const newSession = await aiAgentOrchestrator.startAutomatedSession(user.id);
+      console.log('🚀 [UI DEBUG] Starting automated session...');
+      const newSession = await enhancedAIAgentOrchestrator.startAutomatedSession(user.id);
+      console.log('✅ [UI DEBUG] Session created:', newSession);
       setSession(newSession);
       
-      // Start the automated process
-      aiAgentOrchestrator.processAutomatedApplications(user.id).catch((error) => {
-        console.error('Agent process error:', error);
+      console.log('🔄 [UI DEBUG] Starting enhanced automated process...');
+      // Start the enhanced automated process
+      enhancedAIAgentOrchestrator.processEnhancedAutomatedApplications(user.id).then((result) => {
+        console.log('🎉 [UI DEBUG] Process completed:', result);
+        if (result.success) {
+          toast.success(`Agent completed! Found ${result.total_jobs_scraped} jobs, ${result.total_matches.length} matches, generated ${result.generated_cvs.length} CVs`);
+        } else {
+          console.error('❌ [UI DEBUG] Process failed:', result.error);
+          toast.error(`Agent failed: ${result.error}`);
+        }
+      }).catch((error) => {
+        console.error('❌ [UI DEBUG] Agent process error:', error);
         toast.error("Agent encountered an error");
       });
 
       toast.success("Automated agent started!");
     } catch (error) {
-      console.error('Error starting agent:', error);
+      console.error('❌ [UI DEBUG] Error starting agent:', error);
       toast.error("Failed to start agent");
     } finally {
+      console.log('🏁 [UI DEBUG] Setting isStarting to false');
       setIsStarting(false);
     }
   };
 
   const handlePauseAgent = async () => {
-    await aiAgentOrchestrator.pauseSession();
+    await enhancedAIAgentOrchestrator.pauseSession();
     if (session) {
       setSession({ ...session, status: 'paused' });
     }
@@ -68,7 +92,7 @@ export const AutomatedAgent = () => {
   };
 
   const handleResumeAgent = async () => {
-    await aiAgentOrchestrator.resumeSession();
+    await enhancedAIAgentOrchestrator.resumeSession();
     if (session) {
       setSession({ ...session, status: 'running' });
     }
@@ -76,7 +100,7 @@ export const AutomatedAgent = () => {
   };
 
   const handleStopAgent = async () => {
-    await aiAgentOrchestrator.pauseSession();
+    await enhancedAIAgentOrchestrator.pauseSession();
     if (session) {
       setSession({ ...session, status: 'completed' });
     }
@@ -96,10 +120,10 @@ export const AutomatedAgent = () => {
 
   const getStepIcon = (step: string) => {
     switch (step) {
-      case 'matching': return <Target className="w-4 h-4" />;
-      case 'discovering': return <Briefcase className="w-4 h-4" />;
-      case 'generating': return <Clock className="w-4 h-4" />;
-      case 'applying': return <CheckCircle className="w-4 h-4" />;
+      case 'discovering_careers': return <Target className="w-4 h-4" />;
+      case 'scraping_jobs': return <Briefcase className="w-4 h-4" />;
+      case 'matching_jobs': return <Target className="w-4 h-4" />;
+      case 'generating_cvs': return <Clock className="w-4 h-4" />;
       case 'completed': return <CheckCircle className="w-4 h-4" />;
       default: return <AlertCircle className="w-4 h-4" />;
     }
@@ -187,15 +211,15 @@ export const AutomatedAgent = () => {
 
       {/* Session Stats */}
       {session && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <Card className="bg-gray-900 border-gray-800">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">Companies Processed</p>
+                  <p className="text-sm text-gray-400">Companies</p>
                   <p className="text-2xl font-bold text-white">{session.companies_processed}</p>
                 </div>
-                <Target className="w-8 h-8 text-gray-400" />
+                <Target className="w-8 h-8 text-blue-400" />
               </div>
             </CardContent>
           </Card>
@@ -204,10 +228,46 @@ export const AutomatedAgent = () => {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">Applications Submitted</p>
-                  <p className="text-2xl font-bold text-white">{session.applications_submitted}</p>
+                  <p className="text-sm text-gray-400">Career Pages</p>
+                  <p className="text-2xl font-bold text-white">{session.career_pages_found || 0}</p>
                 </div>
-                <Briefcase className="w-8 h-8 text-gray-400" />
+                <Target className="w-8 h-8 text-green-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900 border-gray-800">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">Jobs Found</p>
+                  <p className="text-2xl font-bold text-white">{session.jobs_discovered || 0}</p>
+                </div>
+                <Briefcase className="w-8 h-8 text-purple-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900 border-gray-800">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">Job Matches</p>
+                  <p className="text-2xl font-bold text-white">{session.jobs_matched || 0}</p>
+                </div>
+                <Target className="w-8 h-8 text-orange-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900 border-gray-800">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">CVs Generated</p>
+                  <p className="text-2xl font-bold text-white">{session.applications_generated || 0}</p>
+                </div>
+                <Clock className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -220,23 +280,6 @@ export const AutomatedAgent = () => {
                   <p className="text-2xl font-bold text-white">${session.total_cost_usd.toFixed(4)}</p>
                 </div>
                 <DollarSign className="w-8 h-8 text-yellow-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-900 border-gray-800">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Runtime</p>
-                  <p className="text-2xl font-bold text-white">
-                    {session.completed_at 
-                      ? Math.round((new Date(session.completed_at).getTime() - new Date(session.started_at).getTime()) / 60000)
-                      : Math.round((Date.now() - new Date(session.started_at).getTime()) / 60000)
-                    }m
-                  </p>
-                </div>
-                <Clock className="w-8 h-8 text-purple-400" />
               </div>
             </CardContent>
           </Card>
@@ -268,13 +311,23 @@ export const AutomatedAgent = () => {
             
             <p className="text-gray-300">{progress.message}</p>
             
-            <div className="flex items-center justify-between text-sm">
-              <Badge variant="outline" className="!text-white !border-gray-600 !bg-transparent">
-                Step: {progress.step}
-              </Badge>
-              <span className="text-gray-400">
-                Cost so far: ${progress.cost_so_far.toFixed(4)}
-              </span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-gray-400">Step</div>
+                <div className="font-medium text-white">{progress.step.replace('_', ' ')}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400">Jobs Found</div>
+                <div className="font-medium text-white">{progress.jobs_found_so_far || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400">Matches</div>
+                <div className="font-medium text-white">{progress.matches_found_so_far || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-400">Cost</div>
+                <div className="font-medium text-white">${progress.cost_so_far.toFixed(4)}</div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -291,7 +344,7 @@ export const AutomatedAgent = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {aiAgentOrchestrator.getCostBreakdown().map((cost, index) => (
+              {enhancedAIAgentOrchestrator.getCostBreakdown().map((cost, index) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b border-gray-800">
                   <div>
                     <span className="text-sm font-medium text-white">{cost.operation}</span>
@@ -318,27 +371,39 @@ export const AutomatedAgent = () => {
         <CardContent>
           <div className="space-y-3 text-sm text-gray-300">
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">1</div>
+              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">1</div>
               <div>
-                <strong>Company Matching:</strong> Finds companies that match your industry preferences and aren't excluded
+                <strong>Company Matching:</strong> Analyzes your preferences to find relevant companies, filters by industry and excludes blacklisted ones
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">2</div>
+              <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">2</div>
               <div>
-                <strong>Job Discovery:</strong> Searches each company's career page for available positions
+                <strong>Career Page Discovery:</strong> Uses web search to find each company's actual career pages with high confidence scoring
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">3</div>
+              <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">3</div>
               <div>
-                <strong>CV Generation:</strong> Creates tailored CVs for each specific job and company
+                <strong>AI Job Scraping:</strong> LangChain-powered web agent extracts real job listings with detailed requirements and descriptions
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">4</div>
+              <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">4</div>
               <div>
-                <strong>Application Submission:</strong> Automatically fills out forms and submits applications
+                <strong>Smart Job Matching:</strong> Advanced scoring system evaluates compatibility across skills, location, experience, and salary
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-cyan-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">5</div>
+              <div>
+                <strong>Targeted CV Generation:</strong> Creates ATS-optimized CVs tailored to specific job requirements using match analysis
+              </div>
+            </div>
+            <div className="flex items-start gap-3 opacity-50">
+              <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-white text-xs font-bold mt-0.5">6</div>
+              <div>
+                <strong>Application Submission:</strong> <em>(Coming Soon)</em> Automated form filling and application submission
               </div>
             </div>
           </div>

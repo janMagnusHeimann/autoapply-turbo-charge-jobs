@@ -25,6 +25,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Development bypass mode
+  const isDevelopment = import.meta.env.DEV;
+  const bypassAuth = isDevelopment && import.meta.env.VITE_BYPASS_AUTH === 'true';
+
   const refreshUserData = async () => {
     if (!user) return;
 
@@ -42,6 +46,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Development bypass mode
+    if (bypassAuth) {
+      console.log('🔓 Development mode: Creating mock user session');
+      
+      // Create mock user for development with valid UUID
+      const mockUser = {
+        id: '12345678-1234-1234-1234-123456789012',
+        email: 'dev@example.com',
+        user_metadata: { full_name: 'Development User' }
+      } as User;
+      
+      const mockSession = {
+        user: mockUser,
+        access_token: 'mock-token'
+      } as Session;
+
+      // Create mock profile and preferences
+      const mockProfile: UserProfile = {
+        id: 'dev-profile-123',
+        user_id: '12345678-1234-1234-1234-123456789012',
+        full_name: 'Development User',
+        email: 'dev@example.com',
+        phone: '+1234567890',
+        location: 'Berlin, Germany',
+        linkedin_url: 'https://linkedin.com/in/dev-user',
+        github_url: 'https://github.com/dev-user',
+        portfolio_url: 'https://dev-user.com',
+        professional_summary: 'Experienced software engineer passionate about building innovative solutions.',
+        current_title: 'Senior Software Engineer',
+        github_username: 'dev-user',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const mockPreferences: UserPreferences = {
+        id: 'dev-prefs-123',
+        user_id: '12345678-1234-1234-1234-123456789012',
+        excluded_companies: [],
+        preferred_locations: ['Berlin', 'Munich', 'Remote'],
+        min_salary: 65000,
+        max_salary: 95000,
+        currency: 'EUR',
+        job_types: ['full-time'],
+        remote_preference: 'hybrid',
+        preferred_industries: ['Technology', 'Software', 'Fintech'],
+        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python'],
+        preferred_company_sizes: ['startup', 'medium', 'large'],
+        preferred_remote: 'hybrid',
+        preferred_job_types: ['full-time'],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUser(mockUser);
+      setSession(mockSession);
+      setUserProfile(mockProfile);
+      setUserPreferences(mockPreferences);
+      setLoading(false);
+      
+      return;
+    }
+
     // Get initial session
     const getSession = async () => {
       console.log('AuthContext: Getting session...');
@@ -98,27 +164,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    getSession();
+    if (!bypassAuth) {
+      getSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      // Listen for auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          setSession(session);
+          setUser(session?.user ?? null);
 
-        if (session?.user && event === 'SIGNED_IN') {
-          await initializeAndLoadUserData(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          setUserProfile(null);
-          setUserPreferences(null);
+          if (session?.user && event === 'SIGNED_IN') {
+            await initializeAndLoadUserData(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            setUserProfile(null);
+            setUserPreferences(null);
+          }
+
+          setLoading(false);
         }
+      );
 
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+      return () => subscription.unsubscribe();
+    }
+  }, [bypassAuth]);
 
   useEffect(() => {
     if (user && !userProfile) {

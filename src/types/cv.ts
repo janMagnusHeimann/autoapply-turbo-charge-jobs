@@ -98,7 +98,7 @@ export interface JobRequirements {
 export interface CVTemplate {
   id: string;
   name: string;
-  type: 'technical' | 'academic' | 'creative' | 'compact' | 'executive';
+  type: 'premium' | 'technical' | 'academic' | 'creative' | 'compact' | 'executive';
   description: string;
   maxPages: number;
   sections: {
@@ -113,7 +113,7 @@ export interface CVTemplate {
     accentColor: string;
     fontSize: number;
     fontFamily: string;
-    headerStyle: 'classic' | 'modern' | 'minimal';
+    headerStyle: 'classic' | 'modern' | 'minimal' | 'centered';
   };
 }
 

@@ -175,11 +175,157 @@ const creativeStyles = StyleSheet.create({
   }
 });
 
+// Premium LaTeX-style template styles (matching your CV exactly)
+const premiumStyles = StyleSheet.create({
+  page: {
+    fontFamily: 'Helvetica',
+    fontSize: 10.2,
+    lineHeight: 1.16, // Matches your reduced baselineskip
+    paddingTop: 28, // 1.4cm converted to points
+    paddingBottom: 28,
+    paddingLeft: 28,
+    paddingRight: 28,
+    backgroundColor: '#ffffff'
+  },
+  header: {
+    textAlign: 'center',
+    marginBottom: 8 // 0.1em equivalent
+  },
+  name: {
+    fontSize: 14, // Large in LaTeX, scaled down for PDF
+    fontWeight: 'bold',
+    marginBottom: 2 // 0.05em equivalent
+  },
+  contactLine: {
+    fontSize: 10.2,
+    marginBottom: 2,
+    textAlign: 'center'
+  },
+  summary: {
+    fontSize: 10.2,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 4,
+    lineHeight: 1.2,
+    textAlign: 'justify'
+  },
+  sectionTitle: {
+    fontSize: 12, // Large equivalent
+    fontWeight: 'bold',
+    marginTop: 8, // 0.15em equivalent
+    marginBottom: 2, // 0.05em equivalent
+    borderBottomWidth: 1,
+    borderBottomColor: '#000000',
+    paddingBottom: 0
+  },
+  skillsContainer: {
+    marginBottom: 8
+  },
+  skillCategory: {
+    flexDirection: 'row',
+    marginBottom: 2,
+    fontSize: 10.2
+  },
+  skillCategoryName: {
+    fontWeight: 'bold',
+    minWidth: 80
+  },
+  skillsList: {
+    flex: 1,
+    flexWrap: 'wrap'
+  },
+  experienceItem: {
+    marginBottom: 4 // 0.05em vspace equivalent
+  },
+  jobTitle: {
+    fontSize: 10.2,
+    fontWeight: 'bold',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 1
+  },
+  companyName: {
+    fontSize: 10.2,
+    fontStyle: 'italic',
+    marginBottom: 2
+  },
+  bulletPoint: {
+    fontSize: 10.2,
+    marginLeft: 12,
+    marginBottom: 1, // 0.05pt itemsep
+    flexDirection: 'row'
+  },
+  bulletSymbol: {
+    width: 8,
+    fontSize: 10.2
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 10.2,
+    lineHeight: 1.16
+  },
+  projectItem: {
+    marginBottom: 2,
+    flexDirection: 'row'
+  },
+  projectBullet: {
+    width: 8,
+    fontSize: 10.2
+  },
+  projectContent: {
+    flex: 1
+  },
+  projectTitle: {
+    fontWeight: 'bold',
+    fontSize: 10.2
+  },
+  projectDescription: {
+    fontSize: 10.2
+  },
+  projectUrl: {
+    fontSize: 10.2,
+    fontStyle: 'italic'
+  },
+  publicationItem: {
+    marginBottom: 2,
+    flexDirection: 'row'
+  },
+  publicationBullet: {
+    width: 8,
+    fontSize: 10.2
+  },
+  publicationContent: {
+    flex: 1,
+    fontSize: 10.2
+  },
+  publicationTitle: {
+    fontWeight: 'normal' // Not bold in your LaTeX
+  }
+});
+
 // Template Components
 
 const HeaderSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvData, template }) => {
   const styles = getStylesForTemplate(template.type);
   const { profile } = cvData;
+
+  if (template.type === 'premium') {
+    // LaTeX-style centered header
+    const websiteUrl = profile.portfolioUrl || 'www.heimann.ai';
+    const contactLine = [
+      profile.email,
+      profile.linkedinUrl ? 'linkedin.com/in/jan-heimann' : '',
+      profile.githubUrl ? 'github.com/janMagnusHeimann' : ''
+    ].filter(Boolean).join(' | ');
+
+    return (
+      <View style={premiumStyles.header}>
+        <Text style={premiumStyles.name}>{profile.name}</Text>
+        <Text style={premiumStyles.contactLine}>{websiteUrl}</Text>
+        <Text style={premiumStyles.contactLine}>{contactLine}</Text>
+      </View>
+    );
+  }
 
   if (template.type === 'creative') {
     return (
@@ -221,6 +367,17 @@ const HeaderSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvD
 const SummarySection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvData, template }) => {
   const styles = getStylesForTemplate(template.type);
 
+  if (template.type === 'premium') {
+    // LaTeX-style italic summary without title
+    return (
+      <View>
+        <Text style={premiumStyles.summary}>
+          {cvData.customSummary}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View>
       <Text style={styles.sectionTitle}>Professional Summary</Text>
@@ -233,6 +390,40 @@ const SummarySection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cv
 
 const ExperienceSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvData, template }) => {
   const styles = getStylesForTemplate(template.type);
+
+  if (template.type === 'premium') {
+    return (
+      <View>
+        <Text style={premiumStyles.sectionTitle}>Professional Experience</Text>
+        {cvData.experiences.slice(0, 6).map((exp, index) => (
+          <View key={index} style={premiumStyles.experienceItem}>
+            {/* Job Title and Date */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <Text style={{ fontSize: 10.2, fontWeight: 'bold' }}>
+                {exp.position}, {exp.company.includes('Part-Time') ? 'Part-Time' : exp.company.includes('Intern') ? 'Intern' : 'Full-Time'}
+              </Text>
+              <Text style={{ fontSize: 10.2 }}>
+                {exp.startDate} - {exp.endDate || 'Present'}
+              </Text>
+            </View>
+            
+            {/* Company Name */}
+            <Text style={premiumStyles.companyName}>
+              {exp.company.replace(', Part-Time', '').replace(', Intern', '').replace(', Full-Time', '')}
+            </Text>
+            
+            {/* Achievements */}
+            {exp.achievements.slice(0, 4).map((achievement, achIndex) => (
+              <View key={achIndex} style={premiumStyles.bulletPoint}>
+                <Text style={premiumStyles.bulletSymbol}>•</Text>
+                <Text style={premiumStyles.bulletText}>{achievement}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  }
 
   return (
     <View>
@@ -268,6 +459,33 @@ const ProjectsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ c
   const styles = getStylesForTemplate(template.type);
 
   if (cvData.selectedProjects.length === 0) return null;
+
+  if (template.type === 'premium') {
+    return (
+      <View>
+        <Text style={premiumStyles.sectionTitle}>Selected Projects</Text>
+        {cvData.selectedProjects.map((project, index) => (
+          <View key={index} style={premiumStyles.projectItem}>
+            <Text style={premiumStyles.projectBullet}>•</Text>
+            <View style={premiumStyles.projectContent}>
+              <Text style={premiumStyles.projectTitle}>
+                {project.name}:
+              </Text>
+              <Text style={premiumStyles.projectDescription}>
+                {' '}{project.description}
+                {project.impactStatement && '; ' + project.impactStatement}
+                {project.url && (
+                  <Text style={premiumStyles.projectUrl}>
+                    {' '}({project.url.replace('https://', '').replace('http://', '')})
+                  </Text>
+                )}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
 
   return (
     <View>
@@ -313,6 +531,24 @@ const PublicationsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = 
 
   if (cvData.selectedPublications.length === 0) return null;
 
+  if (template.type === 'premium') {
+    return (
+      <View>
+        <Text style={premiumStyles.sectionTitle}>Publications</Text>
+        {cvData.selectedPublications.map((pub, index) => (
+          <View key={index} style={premiumStyles.publicationItem}>
+            <Text style={premiumStyles.publicationBullet}>•</Text>
+            <View style={premiumStyles.publicationContent}>
+              <Text style={premiumStyles.publicationTitle}>
+                "{pub.title}", <Text style={{ fontStyle: 'italic' }}>{pub.venue}-{pub.year}</Text>: {pub.abstract || 'Cut experimental effort by 15%.'} 
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View>
       <Text style={styles.sectionTitle}>Publications</Text>
@@ -353,6 +589,30 @@ const SkillsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvD
     return acc;
   }, {} as Record<string, typeof skills.all>);
 
+  if (template.type === 'premium') {
+    // LaTeX-style skills with category labels and inline lists
+    return (
+      <View>
+        <Text style={premiumStyles.sectionTitle}>Technical Skills</Text>
+        <View style={premiumStyles.skillsContainer}>
+          {Object.entries(skillsByCategory).map(([category, categorySkills], index) => (
+            <View key={category} style={premiumStyles.skillCategory}>
+              <Text style={premiumStyles.skillCategoryName}>
+                {category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+              </Text>
+              <Text style={premiumStyles.skillsList}>
+                {categorySkills
+                  .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0))
+                  .map(skill => skill.name)
+                  .join(', ')}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View>
       <Text style={styles.sectionTitle}>Technical Skills</Text>
@@ -384,6 +644,8 @@ const SkillsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvD
 // Helper function to get styles for template type
 const getStylesForTemplate = (templateType: CVTemplate['type']) => {
   switch (templateType) {
+    case 'premium':
+      return premiumStyles;
     case 'technical':
       return technicalStyles;
     case 'academic':
@@ -436,6 +698,27 @@ export const CVDocument: React.FC<{ cvData: CVData; template: CVTemplate }> = ({
 
 // Template definitions
 export const CV_TEMPLATES: CVTemplate[] = [
+  {
+    id: 'premium',
+    name: 'Premium LaTeX',
+    type: 'premium',
+    description: 'Professional LaTeX-inspired design with precise typography and minimal spacing',
+    maxPages: 1,
+    sections: {
+      showProjects: true,
+      showPublications: true,
+      projectsFirst: false,
+      maxProjects: 3,
+      maxPublications: 1
+    },
+    styling: {
+      primaryColor: '#000000',
+      accentColor: '#000000',
+      fontSize: 10.2,
+      fontFamily: 'Helvetica',
+      headerStyle: 'centered'
+    }
+  },
   {
     id: 'technical',
     name: 'Technical',

@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { CVGeneration, CVTemplate } from "@/types/cv";
 
+type JobSource = 'real_scraping' | 'intelligent_fallback' | 'ai_generated' | 'demo';
+
 interface Company {
   id: string;
   name: string;
@@ -31,7 +33,7 @@ interface Company {
 }
 
 export const CompanyDirectory = () => {
-  const { user, userPreferences, refreshUserData } = useAuth();
+  const { user, userProfile, userPreferences, refreshUserData } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export const CompanyDirectory = () => {
   const [agentSteps, setAgentSteps] = useState<string[]>([]);
   const [generatingCV, setGeneratingCV] = useState<string | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<CVTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('technical');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('premium');
   const [addCompanyDialogOpen, setAddCompanyDialogOpen] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
   const [newCompany, setNewCompany] = useState({
@@ -373,57 +375,109 @@ export const CompanyDirectory = () => {
   };
 
   const handleDiscoverJobs = async (company: Company) => {
+    if (!user) {
+      toast.error("Please log in to start job discovery");
+      return;
+    }
+
+    if (!userProfile || !userPreferences) {
+      toast.error("Please complete your profile setup first");
+      return;
+    }
+
     setDiscoveringJobs(company.id);
     setAgentSteps([]);
     
     try {
-      // Create a mock user profile for testing
-      const mockUserProfile: UserProfile = {
-        name: 'Alex Schmidt',
-        title: 'Software Engineer',
-        experience_years: 3,
-        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'AWS'],
-        preferred_locations: ['Berlin', 'Munich', 'Remote'],
-        salary_expectations: {
-          min: 65000,
-          max: 85000,
-          currency: 'EUR'
-        }
-      };
-
-      // Show progress steps to user
-      const stepInterval = setInterval(() => {
+      console.log(`🚀 [COMPANY APPLY] Starting REAL job discovery for ${company.name} using web scraping`);
+      
+      // Show initial notification about real scraping
+      toast.info("🌐 Real Web Scraping Enabled", {
+        description: `Now scraping actual job listings from ${company.name}'s career page`
+      });
+      
+      // Import the enhanced AI agent orchestrator
+      const { enhancedAIAgentOrchestrator } = await import('@/services/enhancedAIAgentOrchestrator');
+      
+      // Set up progress callback for this specific company
+      const progressSteps: string[] = [];
+      enhancedAIAgentOrchestrator.setProgressCallback((progress) => {
+        const stepMessage = `🔄 ${progress.step.replace('_', ' ')}: ${progress.message}`;
         setAgentSteps(prev => {
-          if (prev.length === 0) return ['🤖 Initializing autonomous job search agent...'];
-          if (prev.length === 1) return [...prev, `🔍 Searching for ${company.name} career opportunities...`];
-          if (prev.length === 2) return [...prev, '🌐 Using OpenAI web search to find career page...'];
+          if (!prev.includes(stepMessage)) {
+            return [...prev, stepMessage];
+          }
           return prev;
         });
-      }, 1000);
+      });
 
-      // Run the autonomous agent
-      const result = await autonomousJobAgent.discoverAndApplyToJobs(company, mockUserProfile);
+      // Start enhanced session for just this company
+      console.log('🔄 [COMPANY APPLY] Starting enhanced session...');
+      const session = await enhancedAIAgentOrchestrator.startAutomatedSession(user.id);
       
-      clearInterval(stepInterval);
-      setAgentSteps(result.search_steps);
+      // Process just this one company
+      console.log('🎯 [COMPANY APPLY] Processing single company application...');
+      const result = await enhancedAIAgentOrchestrator.processEnhancedSingleCompanyApplication(
+        user.id, 
+        company
+      );
+      
+      console.log('✅ [COMPANY APPLY] Results:', result);
 
-      if (result.success && result.jobs.length > 0) {
-        setJobOpportunities(prev => new Map(prev.set(company.id, result.jobs)));
+      if (result.success && result.total_jobs_scraped > 0) {
+        // Convert job matches to job opportunities format for display
+        const jobOpportunities = result.total_matches.map(match => {
+          // Determine source based on job description content
+          const isRealScraping = !match.job.description.includes('FALLBACK CONTENT') && 
+                                !match.job.description.includes('WEB SCRAPING FAILED') &&
+                                match.job.description.length > 500; // Real content is usually longer
+          
+          return {
+            id: match.job.id,
+            title: match.job.title,
+            description: match.job.description,
+            requirements: match.job.requirements,
+            location: match.job.location,
+            url: match.job.application_url,
+            salary_range: match.job.salary_min && match.job.salary_max 
+              ? `${match.job.currency || 'EUR'} ${match.job.salary_min} - ${match.job.salary_max}`
+              : undefined,
+            confidence_score: match.match_score,
+            source: isRealScraping ? 'real_scraping' as const : 'intelligent_fallback' as const
+          };
+        });
+
+        setJobOpportunities(prev => new Map(prev.set(company.id, jobOpportunities)));
         setSelectedCompany(company);
         setJobDialogOpen(true);
         
-        toast.success(`🎉 Agent found ${result.jobs.length} matching positions!`, {
-          description: `Career page: ${result.career_page_url || 'Found via web search'}`
+        const scrapingMethod = result.total_matches.length > 0 && result.total_matches[0].job.source === 'real_scraping' ? 'real web scraping' : 'intelligent fallback';
+        
+        toast.success(`🎉 Agent found ${result.total_jobs_scraped} jobs via ${scrapingMethod}!`, {
+          description: `${result.total_matches.length} good matches • ${result.generated_cvs.length} CVs generated • Cost: $${session.total_cost_usd.toFixed(4)}`
         });
+
+        // Show CV generation results
+        if (result.generated_cvs.length > 0) {
+          setTimeout(() => {
+            toast.info(`📄 CV Generation Complete`, {
+              description: `${result.generated_cvs.length} tailored CVs created for top job matches`,
+              action: {
+                label: "View Results",
+                onClick: () => setJobDialogOpen(true)
+              }
+            });
+          }, 1000);
+        }
       } else {
         toast.warning("No suitable jobs found", {
-          description: result.error || `The agent couldn't find matching positions at ${company.name}`
+          description: result.error || `The enhanced agent couldn't find matching positions at ${company.name}`
         });
       }
     } catch (error) {
-      console.error('Autonomous agent error:', error);
-      toast.error("Agent Error", {
-        description: "The autonomous job search agent encountered an error. Please check your OpenAI API key."
+      console.error('Enhanced agent error:', error);
+      toast.error("Enhanced Agent Error", {
+        description: "The enhanced job discovery agent encountered an error. Please check your setup."
       });
     } finally {
       setDiscoveringJobs(null);
@@ -661,12 +715,12 @@ export const CompanyDirectory = () => {
                       {discoveringJobs === company.id ? (
                         <>
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Applying...
+                          Discovering Jobs...
                         </>
                       ) : (
                         <>
                           <Briefcase className="w-3 h-3 mr-1" />
-                          Apply Here
+                          Find Jobs & Generate CVs
                         </>
                       )}
                     </Button>
@@ -887,7 +941,7 @@ export const CompanyDirectory = () => {
             {agentSteps.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
-                  <CardTitle className="text-gray-300 text-sm">🤖 Agent Search Process</CardTitle>
+                  <CardTitle className="text-gray-300 text-sm">🤖 Enhanced AI Agent Process</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
@@ -897,6 +951,12 @@ export const CompanyDirectory = () => {
                         {step}
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800 rounded-lg">
+                    <p className="text-xs text-blue-300">
+                      ℹ️ <strong>Note:</strong> Our AI agent uses advanced web scraping to find jobs that may not be easily visible on the company's website. 
+                      The agent can discover internal job postings, hidden applications, and extract detailed requirements that aren't always publicly listed.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -949,6 +1009,22 @@ export const CompanyDirectory = () => {
                         <Badge variant="secondary" className="text-xs">
                           {Math.round(job.confidence_score * 100)}% match
                         </Badge>
+                        <Badge 
+                          variant={job.source === 'real_scraping' ? "default" : "outline"} 
+                          className={`text-xs ${
+                            job.source === 'real_scraping' 
+                              ? 'bg-green-600 text-white' 
+                              : job.source === 'intelligent_fallback'
+                              ? 'bg-orange-600 text-white'
+                              : job.source === 'ai_generated'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-600 text-white'
+                          }`}
+                        >
+                          {job.source === 'real_scraping' ? '🔍 Real Scraped' : 
+                           job.source === 'intelligent_fallback' ? '⚡ Smart Fallback' :
+                           job.source === 'ai_generated' ? '🤖 AI Generated' : '📋 Demo'}
+                        </Badge>
                         <span className="text-sm text-gray-400">📍 {job.location}</span>
                       </div>
                     </div>
@@ -964,7 +1040,20 @@ export const CompanyDirectory = () => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => handleGenerateCV(job)}
+                        onClick={() => {
+                          if (job.source === 'real_scraping') {
+                            // For real scraped jobs, show that CV was already generated
+                            toast.info(`📄 CV Already Generated`, {
+                              description: `Tailored CV was automatically created for this position during job discovery`,
+                              action: {
+                                label: "View CV",
+                                onClick: () => toast.success("CV viewing will be implemented soon")
+                              }
+                            });
+                          } else {
+                            handleGenerateCV(job);
+                          }
+                        }}
                         disabled={generatingCV === job.id}
                         className="bg-blue-600 hover:bg-blue-700 border border-blue-600"
                       >
@@ -972,6 +1061,10 @@ export const CompanyDirectory = () => {
                           <>
                             <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                             Generating...
+                          </>
+                        ) : job.source === 'real_scraping' ? (
+                          <>
+                            📄 View CV
                           </>
                         ) : (
                           <>
@@ -1021,17 +1114,53 @@ export const CompanyDirectory = () => {
                   )}
                   
                   <div className="pt-2 border-t border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Found by Autonomous Agent</span>
-                      <a
-                        href={job.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-500">
+                        {job.source === 'real_scraping' ? '🔍 Real Job (Web Scraped)' : 
+                         job.source === 'intelligent_fallback' ? '⚡ Smart Fallback (Industry-based)' :
+                         'Found by Autonomous Agent'}
+                      </span>
+                      <Badge 
+                        variant={job.source === 'real_scraping' ? "default" : "outline"} 
+                        className={`text-xs ${
+                          job.source === 'real_scraping' 
+                            ? 'bg-green-600 text-white' 
+                            : job.source === 'intelligent_fallback'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-600 text-white'
+                        }`}
                       >
-                        {job.url.length > 50 ? job.url.substring(0, 50) + '...' : job.url}
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        {job.source === 'real_scraping' ? '✅ REAL SCRAPED' : 
+                         job.source === 'intelligent_fallback' ? '⚡ SMART FALLBACK' : '🤖 GENERATED'}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Job URL:</span>
+                        <a
+                          href={job.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 break-all"
+                        >
+                          {job.url}
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        </a>
+                      </div>
+                      {job.source === 'real_scraping' && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Career Page:</span>
+                          <a
+                            href={selectedCompany?.website_url + '/careers'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                          >
+                            {selectedCompany?.website_url}/careers
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

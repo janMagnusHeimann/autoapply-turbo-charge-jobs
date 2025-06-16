@@ -1,4 +1,5 @@
 import { OpenAI } from 'openai';
+import { realJobScraper } from './realJobScraper';
 
 // Types for our agent system
 export interface Company {
@@ -36,6 +37,9 @@ export interface JobOpportunity {
   salary_range?: string;
   posting_date?: string;
   confidence_score: number; // How well it matches the user profile
+  type?: string; // Full-time, Part-time, etc.
+  department?: string;
+  source?: 'real_scraping' | 'ai_generated' | 'api' | 'fallback';
 }
 
 export interface AgentResult {
@@ -64,66 +68,81 @@ class AutonomousJobAgent {
   }
 
   /**
-   * Main entry point for autonomous job discovery
+   * Main entry point for autonomous job discovery with real web scraping
    */
   async discoverAndApplyToJobs(company: Company, userProfile: UserProfile): Promise<AgentResult> {
     const searchSteps: string[] = [];
     
     try {
-      // Check if we have a valid API key
+      searchSteps.push(`🚀 Starting enhanced job discovery for ${company.name}...`);
+      
+      // Step 1: Try real web scraping first
+      searchSteps.push('🔍 Attempting real web scraping of career page...');
+      const realScrapingResult = await realJobScraper.scrapeCompanyJobs(company, userProfile);
+      
+      console.log('Real scraping result:', realScrapingResult);
+      
+      if (realScrapingResult.success && realScrapingResult.jobs.length > 0) {
+        // Real scraping succeeded!
+        searchSteps.push(...realScrapingResult.scrapingSteps);
+        searchSteps.push(`✅ Real scraping successful: Found ${realScrapingResult.jobs.length} actual job postings`);
+        
+        return {
+          success: true,
+          jobs: realScrapingResult.jobs,
+          career_page_url: realScrapingResult.careerPageUrl,
+          search_steps: searchSteps
+        };
+      }
+      
+      // Step 2: Real scraping failed, fall back to AI generation
+      searchSteps.push(`⚠️ Real scraping failed: ${realScrapingResult.error || 'Unknown error'}`);
+      searchSteps.push('🤖 Falling back to AI-generated jobs...');
+      if (realScrapingResult.scrapingSteps) {
+        searchSteps.push(...realScrapingResult.scrapingSteps);
+      }
+      
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey) {
+        searchSteps.push('❌ No OpenAI API key found, using demo mode...');
         return this.createFallbackResult(company, userProfile, searchSteps);
       }
 
-      // Step 1: Find the company's career page
-      searchSteps.push(`🔍 Searching for ${company.name} career opportunities...`);
+      // Step 3: AI-powered job generation
       const careerPageResult = await this.findCareerPage(company);
+      const careerPageUrl = careerPageResult.success ? careerPageResult.url! : 
+        (company.website_url ? `${company.website_url}/careers` : `https://${company.name.toLowerCase().replace(/\s+/g, '')}.com/careers`);
       
-      if (!careerPageResult.success) {
+      searchSteps.push(`🤖 Generating AI-powered job opportunities for ${company.name}...`);
+      const aiJobsResult = await this.searchJobOpportunities(company, userProfile, careerPageUrl);
+
+      if (aiJobsResult.success) {
+        // Mark jobs as AI-generated
+        const aiJobs = aiJobsResult.jobs.map(job => ({
+          ...job,
+          source: 'ai_generated' as const
+        }));
+        
+        searchSteps.push(`🎭 Generated ${aiJobs.length} AI-powered job opportunities`);
+        searchSteps.push('💡 Note: These are AI-generated positions based on company profile');
+        
         return {
-          success: false,
-          jobs: [],
-          error: careerPageResult.error,
+          success: true,
+          jobs: aiJobs,
+          career_page_url: careerPageUrl,
           search_steps: searchSteps
         };
       }
 
-      searchSteps.push(`✅ Found career page: ${careerPageResult.url}`);
-
-      // Step 2: Search for specific job opportunities
-      searchSteps.push(`🎯 Looking for software engineering positions at ${company.name}...`);
-      const jobsResult = await this.searchJobOpportunities(company, userProfile, careerPageResult.url!);
-
-      if (!jobsResult.success) {
-        return {
-          success: false,
-          jobs: [],
-          career_page_url: careerPageResult.url,
-          error: jobsResult.error,
-          search_steps: searchSteps
-        };
-      }
-
-      searchSteps.push(`🎉 Found ${jobsResult.jobs.length} matching positions`);
-
-      return {
-        success: true,
-        jobs: jobsResult.jobs,
-        career_page_url: careerPageResult.url,
-        search_steps: searchSteps
-      };
+      // Step 4: Ultimate fallback
+      return this.createFallbackResult(company, userProfile, searchSteps);
 
     } catch (error) {
-      // If OpenAI API fails, fall back to demo mode
-      if (error instanceof Error && error.message.includes('API key')) {
-        return this.createFallbackResult(company, userProfile, searchSteps);
-      }
-      
+      console.error('Enhanced job discovery error:', error);
       return {
         success: false,
         jobs: [],
-        error: `Agent error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Enhanced discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         search_steps: searchSteps
       };
     }
@@ -286,7 +305,8 @@ class AutonomousJobAgent {
           description: job.description || 'Software engineering position',
           requirements: job.requirements || [],
           salary_range: job.salary_range || undefined,
-          confidence_score: job.confidence_score || 0.8
+          confidence_score: job.confidence_score || 0.8,
+          source: 'ai_generated'
         }));
 
         return { success: true, jobs: formattedJobs };
@@ -303,7 +323,8 @@ class AutonomousJobAgent {
         url: careerPageUrl,
         description: `Software engineering position at ${company.name}`,
         requirements: ['Programming experience', 'Problem-solving skills'],
-        confidence_score: 0.7
+        confidence_score: 0.7,
+        source: 'ai_generated'
       };
 
       return { success: true, jobs: [fallbackJob] };
@@ -365,7 +386,8 @@ class AutonomousJobAgent {
         'Team collaboration experience'
       ],
       salary_range: company.headquarters?.includes('Berlin') ? '€60,000 - €80,000' : '€70,000 - €90,000',
-      confidence_score: 0.85
+      confidence_score: 0.85,
+      source: 'fallback'
     });
 
     // Add a senior position if user has enough experience
@@ -385,7 +407,8 @@ class AutonomousJobAgent {
           'Leadership and mentoring skills'
         ],
         salary_range: company.headquarters?.includes('Berlin') ? '€70,000 - €95,000' : '€80,000 - €105,000',
-        confidence_score: 0.82
+        confidence_score: 0.82,
+        source: 'fallback'
       });
     }
 
