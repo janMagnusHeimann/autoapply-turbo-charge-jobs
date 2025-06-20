@@ -21,7 +21,8 @@ dependencies = [
     "lxml>=4.9.3",
     "supabase>=2.0.2",
     "langchain>=0.0.350",
-    "langchain-openai>=0.0.2"
+    "langchain-openai>=0.0.2",
+    "anthropic>=0.54.0",
 ]
 
 [build-system]
