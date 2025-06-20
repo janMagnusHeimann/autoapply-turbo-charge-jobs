@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install frontend dependencies
+      run: npm ci
+    
+    - name: Run frontend linting
+      run: npm run lint
+    
+    - name: Run frontend tests
+      run: npm test -- --coverage --watchAll=false
+    
+    - name: Build frontend
+      run: npm run build
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        python -m pytest tests/ --cov=src --cov-report=xml
+    
+    - name: Run agent tests
+      run: |
+        python -m pytest tests/ --cov=backend/src --cov-report=xml
+
+  supabase-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+    
+    - name: Start Supabase
+      run: supabase start
+    
+    - name: Verify database schema
+      run: supabase db diff --schema public
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run npm audit
+      run: npm audit --audit-level moderate
+      continue-on-error: true
+    
+    - name: Run Python security scan
+      run: |
+        pip install safety
+        cd backend
+        safety check -r requirements.txt
+      continue-on-error: true
+
+  build-docker:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: docker build -t autoapply:latest .
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm -d --name test-container autoapply:latest
+        sleep 10
+        docker stop test-container

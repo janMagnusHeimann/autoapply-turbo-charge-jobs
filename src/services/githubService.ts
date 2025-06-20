@@ -54,6 +54,7 @@ export interface GitHubUser {
 export class GitHubService {
   private static readonly CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
   private static readonly REDIRECT_URI = `${window.location.origin}/auth/github/callback`;
+  private static readonly BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   private static isConfigured(): boolean {
     return !!(this.CLIENT_ID && 
@@ -85,7 +86,7 @@ export class GitHubService {
   static async exchangeCodeForToken(code: string): Promise<string> {
     try {
       // Use backend proxy to avoid CORS issues and keep client secret secure
-      const response = await fetch('http://localhost:8001/api/github-oauth/token', {
+      const response = await fetch(`${this.BACKEND_URL}/api/github-oauth/token`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

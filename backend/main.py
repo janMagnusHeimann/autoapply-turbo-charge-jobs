@@ -15,13 +15,14 @@ from dotenv import load_dotenv
 
 # Load environment variables from parent directory
 load_dotenv("../.env")
+load_dotenv("../.env.local")  # Also load local environment file if it exists
 
 app = FastAPI(title="Job Application Automation API", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8087", "http://localhost:5173", "http://localhost:8080"],
+    allow_origins=["http://localhost:8087", "http://localhost:5173", "http://localhost:8080", "http://localhost:8081"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,8 +62,12 @@ async def github_oauth_token(request: GitHubOAuthRequest):
         print(f"DEBUG: GitHub client secret found: {bool(github_client_secret)}")
         print(f"DEBUG: Client ID received: {request.client_id}")
         print(f"DEBUG: GitHub client secret (first 8 chars): {github_client_secret[:8] if github_client_secret else 'None'}")
-        if not github_client_secret:
-            raise HTTPException(status_code=500, detail="GitHub client secret not configured")
+        
+        if not github_client_secret or github_client_secret == "your_github_client_secret_here":
+            raise HTTPException(
+                status_code=500, 
+                detail="GitHub client secret not configured. Please set GITHUB_CLIENT_SECRET in your .env file."
+            )
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -95,4 +100,5 @@ async def github_oauth_token(request: GitHubOAuthRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.getenv("API_PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

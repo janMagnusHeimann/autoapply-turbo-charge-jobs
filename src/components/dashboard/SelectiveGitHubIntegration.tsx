@@ -60,6 +60,28 @@ export const SelectiveGitHubIntegration = ({ onRepositoriesSync }: SelectiveGitH
     checkConnection();
   }, [user]);
 
+  // Listen for GitHub connection events to auto-refresh
+  useEffect(() => {
+    const handleGitHubConnected = (event: CustomEvent) => {
+      console.log('🔄 GitHub connected event received, refreshing data...');
+      toast({
+        title: "GitHub Connected!",
+        description: `Successfully connected and synced ${event.detail.repositoryCount} repositories.`,
+      });
+      
+      // Refresh the connection status and data
+      setTimeout(() => {
+        checkConnection();
+      }, 1000); // Small delay to ensure backend processing is complete
+    };
+
+    window.addEventListener('github-connected', handleGitHubConnected as EventListener);
+    
+    return () => {
+      window.removeEventListener('github-connected', handleGitHubConnected as EventListener);
+    };
+  }, []);
+
   useEffect(() => {
     const selected = repositories.filter(repo => repo.isSelected);
     setSelectedCount(selected.length);

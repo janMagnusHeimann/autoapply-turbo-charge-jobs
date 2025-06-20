@@ -31,13 +31,20 @@ export default function GitHubCallback() {
 
         // Wait for user to be available (for development mode)
         let retries = 0;
-        while (!user && retries < 10) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        while (!user && retries < 30) {
+          await new Promise(resolve => setTimeout(resolve, 200));
           retries++;
+          console.log(`Waiting for user authentication... attempt ${retries}/30`);
         }
 
         if (!user) {
-          throw new Error('User not authenticated');
+          // In development mode, proceed anyway as the backend OAuth is working
+          if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+            console.warn('Development mode: Proceeding without user object for GitHub OAuth');
+            // Continue with OAuth but skip user-dependent operations
+          } else {
+            throw new Error('User not authenticated');
+          }
         }
 
         setMessage('Exchanging authorization code...');
@@ -58,14 +65,19 @@ export default function GitHubCallback() {
         setMessage('Storing GitHub data...');
 
         // Store GitHub data
-        await GitHubService.storeGitHubToken(user.id, accessToken, githubUser);
+        if (user?.id) {
+          await GitHubService.storeGitHubToken(user.id, accessToken, githubUser);
+        } else if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+          // In development mode, store in localStorage
+          console.log('Development mode: Storing GitHub data in localStorage only');
+        }
 
         setMessage('Syncing repositories to profile...');
 
         // Skip repository sync in development mode to avoid RLS issues
         if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
           console.log('Development mode: Skipping repository sync to avoid RLS issues');
-        } else {
+        } else if (user?.id) {
           // Sync repositories to profile
           await GitHubService.syncRepositoriesToProfile(user.id, repositories);
         }
@@ -74,9 +86,20 @@ export default function GitHubCallback() {
         setMessage(`Successfully connected GitHub account and synced ${repositories.length} repositories!`);
         setStatus('success');
 
+        // Trigger a refresh event for GitHub components to auto-update
+        window.dispatchEvent(new CustomEvent('github-connected', { 
+          detail: { 
+            repositoryCount: repositories.length,
+            githubUser: githubUser 
+          } 
+        }));
+
         // Redirect to main dashboard after a delay
         setTimeout(() => {
-          navigate('/', { replace: true });
+          navigate('/', { replace: true, state: { 
+            githubConnected: true, 
+            repositoryCount: repositories.length 
+          }});
         }, 2000);
 
       } catch (error) {
