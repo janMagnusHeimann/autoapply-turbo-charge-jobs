@@ -13,6 +13,9 @@ dependencies = [
     # OpenAI Integration
     "openai>=1.52.0",
     
+    # Database Integration
+    "supabase>=2.0.0",
+    
     # Browser Automation (Optional)
     "playwright==1.40.0",
     
