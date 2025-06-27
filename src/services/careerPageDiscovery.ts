@@ -22,13 +22,8 @@ export class CareerPageDiscoveryService {
   private readonly CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (apiKey) {
-      this.openai = new OpenAI({
-        apiKey,
-        dangerouslyAllowBrowser: true
-      });
-    }
+    // No longer need OpenAI client - using backend endpoints for security
+    this.openai = null;
   }
 
   private isOpenAIConfigured(): boolean {
@@ -63,9 +58,7 @@ export class CareerPageDiscoveryService {
   }
 
   private async performWebSearch(company: Company): Promise<CareerPageResult> {
-    if (!this.openai) {
-      throw new Error('OpenAI not configured. Please set VITE_OPENAI_API_KEY environment variable.');
-    }
+    // Use backend API instead of direct OpenAI calls
 
     const searchQuery = this.buildSearchQuery(company);
     

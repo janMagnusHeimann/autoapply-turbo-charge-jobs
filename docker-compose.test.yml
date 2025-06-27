@@ -1,0 +1,55 @@
+version: '3.8'
+
+# Test Docker Compose - minimal setup for testing without API keys
+services:
+  # Frontend React/Vite Application
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8087:8087"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_GITHUB_CLIENT_ID=${VITE_GITHUB_CLIENT_ID}
+      - VITE_BYPASS_AUTH=true
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Backend FastAPI Service (with fallback mock keys for testing)
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-test-key-for-docker-testing}
+
+              - GITHUB_CLIENT_SECRET=${VITE_GITHUB_CLIENT_SECRET:-test-github-secret}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=DEBUG
+      - SUPABASE_URL=${VITE_SUPABASE_URL}
+      - SUPABASE_KEY=${VITE_SUPABASE_ANON_KEY}
+      - DEMO_MODE=${DEMO_MODE:-true}
+    volumes:
+      - ./backend/logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: python start.py
+
+networks:
+  app-network:
+    driver: bridge

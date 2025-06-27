@@ -8,9 +8,8 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
-  // Development bypass - skip authentication in development mode
-  const isDevelopment = import.meta.env.DEV;
-  const bypassAuth = isDevelopment && import.meta.env.VITE_BYPASS_AUTH === 'true';
+  // Auth bypass - skip authentication when VITE_BYPASS_AUTH is true
+  const bypassAuth = import.meta.env.VITE_BYPASS_AUTH === 'true';
 
   if (bypassAuth) {
     console.log('🔓 Development mode: Authentication bypassed');

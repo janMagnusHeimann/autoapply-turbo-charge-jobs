@@ -11,7 +11,8 @@ import {
   Clock,
   LogOut,
   Zap,
-  Globe
+  Globe,
+  Search
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
@@ -33,6 +34,7 @@ const navigationItems = [
   { id: 'sources' as DashboardView, label: 'Job Sources', icon: Globe },
   { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target },
   { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
+  { id: 'openai-search' as DashboardView, label: 'OpenAI Job Search', icon: Search },
   { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock },
   { id: 'history' as DashboardView, label: 'Application History', icon: FileText },
   { id: 'settings' as DashboardView, label: 'Settings', icon: SettingsIcon },

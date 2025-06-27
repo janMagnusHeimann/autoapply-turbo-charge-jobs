@@ -1,6 +1,5 @@
 import type { JobListing } from './jobScrapingAgent';
 import type { UserProfile, UserPreferences } from './userService';
-import { ChatOpenAI } from '@langchain/openai';
 
 export interface JobMatch {
   job: JobListing;
@@ -32,7 +31,6 @@ export interface MatchingCriteria {
 }
 
 export class JobMatchingService {
-  private llm: ChatOpenAI;
   private defaultWeights: MatchingCriteria = {
     skills_weight: 0.3,
     location_weight: 0.15,
@@ -45,17 +43,7 @@ export class JobMatchingService {
   };
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not found');
-    }
-
-    this.llm = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: 'gpt-4o-mini',
-      temperature: 0.2,
-      maxTokens: 2000,
-    });
+    // No longer need OpenAI client - using backend for AI operations
   }
 
   /**

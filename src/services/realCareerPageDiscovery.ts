@@ -1,6 +1,5 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { OpenAI } from 'openai';
 
 export interface CareerPageResult {
   company_name: string;
@@ -21,18 +20,10 @@ export interface Company {
 export class RealCareerPageDiscoveryService {
   private cache: Map<string, { result: CareerPageResult; timestamp: number }> = new Map();
   private readonly CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
-  private openai: OpenAI;
+  private readonly API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not found. Please set VITE_OPENAI_API_KEY environment variable.');
-    }
-
-    this.openai = new OpenAI({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true
-    });
+    // No longer need OpenAI client - using backend endpoints
   }
 
   private getCacheKey(company: Company): string {
@@ -76,14 +67,13 @@ export class RealCareerPageDiscoveryService {
       }
       
       // Fallback to FastAPI backend pattern matching
-      const response = await fetch('http://localhost:8000/api/web-search-career-page', {
+      const response = await fetch(`${this.API_BASE_URL}/api/web-search-career-page`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          companyName: company.name,
-          websiteUrl: company.website_url
+          company_name: company.name
         })
       });
       
@@ -112,14 +102,13 @@ export class RealCareerPageDiscoveryService {
     try {
       console.log(`🌐 Using web search to find real career page for ${company.name}...`);
       
-      const response = await fetch('http://localhost:8000/api/web-search-career-page', {
+      const response = await fetch(`${this.API_BASE_URL}/api/web-search-career-page`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          companyName: company.name,
-          websiteUrl: company.website_url
+          company_name: company.name
         })
       });
       
@@ -144,62 +133,35 @@ export class RealCareerPageDiscoveryService {
   }
 
   /**
-   * Use OpenAI web search to find real career pages
+   * Use backend API to find real career pages (replaced OpenAI method)
    */
   private async searchCareerPageWithOpenAI(company: Company): Promise<string[]> {
     try {
-      console.log(`🔍 Using OpenAI web search to find career page for ${company.name}...`);
+      console.log(`🔍 Using backend API to find career page for ${company.name}...`);
       
-      // Try to use OpenAI's web search via the Responses API
-      const searchQuery = `${company.name} careers jobs hiring page site:${company.website_url ? this.extractDomain(company.website_url) : ''}`;
-      
-      // Use OpenAI with web search tool
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: `Search the web for the careers/jobs page for ${company.name}. Find the official career page URL where they post job openings. Search query: "${searchQuery}"`
-          }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "web_search",
-              description: "Search the web for career pages",
-              parameters: {
-                type: "object",
-                properties: {
-                  query: {
-                    type: "string",
-                    description: "Search query for finding career pages"
-                  }
-                },
-                required: ["query"]
-              }
-            }
-          }
-        ],
-        tool_choice: "auto"
+      // Use backend API instead of direct OpenAI calls
+      const response = await fetch(`${this.API_BASE_URL}/api/web-search-career-page`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          company_name: company.name
+        })
       });
-
-      console.log('OpenAI response:', response.choices[0].message);
       
-      // Extract URLs from the response
-      const content = response.choices[0].message.content;
-      const urls = this.extractUrlsFromResponse(content);
+      const result = await response.json();
       
-      if (urls.length > 0) {
-        console.log(`✅ Found ${urls.length} career page candidates via OpenAI web search:`, urls);
-        return urls;
+      if (result.success && result.career_page_url) {
+        console.log(`✅ Found career page via backend API: ${result.career_page_url}`);
+        return [result.career_page_url];
       } else {
-        console.log(`❌ No career pages found via OpenAI web search for ${company.name}`);
+        console.log(`❌ No career pages found via backend API for ${company.name}`);
         return [];
       }
       
     } catch (error) {
-      console.error(`❌ OpenAI web search failed for ${company.name}:`, error);
+      console.error(`❌ Backend API search failed for ${company.name}:`, error);
       return [];
     }
   }

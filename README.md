@@ -1,51 +1,62 @@
-# AutoApply - AI-Powered Job Application Automation
+# 🚀 AI-Powered Job Application Automation System
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Ready-orange.svg)](https://supabase.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Powered-green.svg)](https://supabase.com/)
 
-> **Open-source AI agent that automates job searching, application generation, and career management for software engineers.**
+> **Open-source AI system that automates job discovery, CV generation, and application tracking with GitHub & Google Scholar integration.**
 
-## 🚀 Quick Start (One Command Setup)
+## ✨ Features
+
+- 🤖 **AI-Powered Job Discovery**: Automated job searching and matching using OpenAI
+- 📄 **Dynamic CV Generation**: AI-optimized CVs tailored for each job application
+- 🐙 **GitHub Integration**: Showcase your repositories with custom descriptions
+- 🎓 **Google Scholar Integration**: Include your publications and research work
+- 🌐 **Browser Automation**: Automated job application submission with Playwright
+- 📊 **Application Tracking**: Complete history and status tracking
+- 🔒 **Secure & Private**: Your data stays in your own Supabase instance
+
+## 🎯 Quick Start (5 minutes)
 
 ### Prerequisites
-- **Node.js 18+** ([Download](https://nodejs.org/))
-- **Python 3.8+** ([Download](https://python.org/))
-- **Git** ([Download](https://git-scm.com/))
+- Docker & Docker Compose
+- Node.js 18+ (for setup scripts)
+- OpenAI API key
+- Supabase account (free)
 
-### 🚀 One-Command Setup
-
+### One-Command Setup
 ```bash
-git clone https://github.com/your-username/autoapply-turbo-charge-jobs.git
+git clone https://github.com/your-username/autoapply-turbo-charge-jobs
 cd autoapply-turbo-charge-jobs
-./setup.sh
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
-That's it! The setup script will:
-1. ✅ Install all dependencies (frontend + backend)
-2. ✅ Set up Supabase local development environment
-3. ✅ Create database tables and seed data
-4. ✅ Generate environment configuration files
-5. ✅ Run tests to verify everything works
+### Manual Setup
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/autoapply-turbo-charge-jobs
+   cd autoapply-turbo-charge-jobs
+   ```
 
-### 🖥️ Running the Application
+2. **Setup environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
 
-After setup, start the services:
+3. **Setup Supabase**
+   ```bash
+   ./scripts/setup-supabase.sh
+   ```
 
-```bash
-# Terminal 1: Frontend (React)
-npm run dev
-# Opens http://localhost:5173
+4. **Start the application**
+   ```bash
+   docker-compose -f docker-compose.dev.yml up
+   ```
 
-# Terminal 2: Backend (FastAPI)
-cd backend
-python main.py
-# Opens http://localhost:8000
-
-# Terminal 3: AI Agent (Optional)
-python tools/run_agent.py --agent career_page
-```
+5. **Access the app**: http://localhost:8087
 
 ## 🚀 Features
 

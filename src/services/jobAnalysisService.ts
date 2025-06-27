@@ -1,4 +1,3 @@
-import { OpenAI } from 'openai';
 import type { 
   JobAnalysis, 
   JobRequirements, 
@@ -10,21 +9,13 @@ import type {
 } from '@/types/cv';
 
 /**
- * AI-powered job analysis service that extracts requirements and optimizes CV content
+ * AI-powered job analysis service that uses backend endpoints for security
  */
 export class JobAnalysisService {
-  private openai: OpenAI;
+  private readonly API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      console.warn('VITE_OPENAI_API_KEY not found. Job analysis will use fallback mode.');
-    }
-    
-    this.openai = new OpenAI({
-      apiKey: apiKey || 'fallback',
-      dangerouslyAllowBrowser: true
-    });
+    // No longer need OpenAI client - using backend endpoints for security
   }
 
   /**

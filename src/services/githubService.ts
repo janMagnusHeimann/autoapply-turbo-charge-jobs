@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import { supabase } from "@/integrations/supabase/client";
 import { saveToSupabaseService, loadFromSupabaseService } from "./supabaseService";
+import EncryptionService from "@/utils/encryption";
 
 export interface GitHubRepository {
   id: number;
@@ -178,7 +179,7 @@ export class GitHubService {
   }
 
   /**
-   * Stores GitHub access token securely
+   * Stores GitHub access token securely with encryption
    */
   static async storeGitHubToken(userId: string, accessToken: string, githubUser: GitHubUser): Promise<void> {
     try {
@@ -202,13 +203,28 @@ export class GitHubService {
         throw profileError;
       }
 
-      // Store encrypted token (you might want to use a more secure storage method)
-      // For now, we'll store it in user preferences as metadata
+      // Encrypt the access token before storing
+      let encryptedToken: any = null;
+      
+      if (EncryptionService.isEncryptionSupported()) {
+        try {
+          encryptedToken = await EncryptionService.encrypt(accessToken, userId);
+          console.log('✅ GitHub token encrypted successfully');
+        } catch (encryptionError) {
+          console.warn('⚠️ Token encryption failed, falling back to unencrypted storage:', encryptionError);
+          // Fall back to storing without encryption if encryption fails
+        }
+      } else {
+        console.warn('⚠️ Encryption not supported in this environment, storing token without encryption');
+      }
+
+      // Store encrypted token and user data
       const { error: tokenError } = await supabase
         .from('user_preferences')
         .update({
-          github_access_token: accessToken, // In production, encrypt this
+          github_access_token: encryptedToken ? JSON.stringify(encryptedToken) : accessToken,
           github_user_data: githubUser,
+          github_token_encrypted: !!encryptedToken, // Flag to indicate if token is encrypted
         })
         .eq('user_id', userId);
 
@@ -222,7 +238,7 @@ export class GitHubService {
   }
 
   /**
-   * Gets stored GitHub access token
+   * Gets stored GitHub access token with decryption
    */
   static async getGitHubToken(userId: string): Promise<string | null> {
     try {
@@ -234,7 +250,7 @@ export class GitHubService {
 
       const { data, error } = await supabase
         .from('user_preferences')
-        .select('github_access_token')
+        .select('github_access_token, github_token_encrypted')
         .eq('user_id', userId)
         .single();
 
@@ -242,7 +258,26 @@ export class GitHubService {
         throw error;
       }
 
-      return data?.github_access_token || null;
+      if (!data?.github_access_token) {
+        return null;
+      }
+
+      // Check if the token is encrypted
+      if (data.github_token_encrypted && EncryptionService.isEncryptionSupported()) {
+        try {
+          const encryptedData = JSON.parse(data.github_access_token);
+          const decryptedToken = await EncryptionService.decrypt(encryptedData, userId);
+          console.log('✅ GitHub token decrypted successfully');
+          return decryptedToken;
+        } catch (decryptionError) {
+          console.error('❌ Failed to decrypt GitHub token:', decryptionError);
+          // If decryption fails, return null to force re-authentication
+          return null;
+        }
+      }
+
+      // Return unencrypted token (for backward compatibility)
+      return data.github_access_token;
     } catch (error) {
       console.error('Error getting GitHub token:', error);
       return null;
@@ -331,6 +366,7 @@ export class GitHubService {
         .update({
           github_access_token: null,
           github_user_data: null,
+          github_token_encrypted: false,
         })
         .eq('user_id', userId);
 

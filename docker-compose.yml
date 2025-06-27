@@ -1,103 +1,93 @@
-version: '3.8'
-
 services:
-  # Web Application
-  web:
-    build: .
+  # Frontend React/Vite Application
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "8087:8087"
     environment:
-      - NODE_ENV=production
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-      - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY}
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_GITHUB_CLIENT_ID=${VITE_GITHUB_CLIENT_ID}
+      - VITE_BYPASS_AUTH=true
     depends_on:
-      - db
-    volumes:
-      - ./logs:/app/logs
+      - backend
     restart: unless-stopped
+    networks:
+      - app-network
 
-  # Job Crawler Service
-  crawler:
+  # Backend FastAPI Service - Unified Multi-Agent System
+  backend:
     build:
-      context: .
-      dockerfile: job-crawler/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     environment:
-      - NODE_ENV=production
-      - SUPABASE_URL=${VITE_SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${VITE_SUPABASE_SERVICE_KEY}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - LOG_LEVEL=info
-    depends_on:
-      - db
+      # Legacy environment variables (for backward compatibility)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+              - GITHUB_CLIENT_SECRET=${VITE_GITHUB_CLIENT_SECRET}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEMO_MODE=${DEMO_MODE:-true}
+      
+      # Unified System Configuration
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-true}
+      - API_PREFIX=${API_PREFIX:-/api}
+      
+      # LLM Configuration
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-openai}
+      - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-gpt-4o}
+      - VISION_MODEL=${VISION_MODEL:-gpt-4o}
+      - CHEAP_MODEL=${CHEAP_MODEL:-gpt-4o-mini}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.1}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4000}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-30}
+      
+      # Agent Configuration
+      - AGENT_MAX_RETRIES=${AGENT_MAX_RETRIES:-3}
+      - AGENT_TIMEOUT=${AGENT_TIMEOUT:-60}
+      - AGENT_MEMORY_LIMIT=${AGENT_MEMORY_LIMIT:-50}
+      - USE_CHEAPER_MODELS=${USE_CHEAPER_MODELS:-true}
+      - VISION_ENABLED=${VISION_ENABLED:-true}
+      
+      # Browser Automation
+      - USE_BROWSER_AUTOMATION=${USE_BROWSER_AUTOMATION:-true}
+      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
+      - BROWSER_TIMEOUT=${BROWSER_TIMEOUT:-30000}
+      - MAX_BROWSER_INSTANCES=${MAX_BROWSER_INSTANCES:-3}
+      - SAVE_SCREENSHOTS=${SAVE_SCREENSHOTS:-false}
+      
+      # Workflow Settings
+      - MAX_CONCURRENT_AGENTS=${MAX_CONCURRENT_AGENTS:-5}
+      - DEFAULT_MAX_EXECUTION_TIME=${DEFAULT_MAX_EXECUTION_TIME:-300}
+      - DEFAULT_MAX_PAGES_PER_SITE=${DEFAULT_MAX_PAGES_PER_SITE:-10}
+      - ENABLE_PARALLEL_PROCESSING=${ENABLE_PARALLEL_PROCESSING:-true}
+      - MAX_CONCURRENT_COMPANIES=${MAX_CONCURRENT_COMPANIES:-3}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      
+      # Logging
+      - ENABLE_CONSOLE_LOGGING=${ENABLE_CONSOLE_LOGGING:-true}
+      - LOG_FILE_PATH=${LOG_FILE_PATH:-/app/logs/system.log}
+    
     volumes:
-      - ./logs:/app/logs
+      - ./backend/logs:/app/logs
+      - ./screenshots:/app/screenshots
     restart: unless-stopped
-    # Run crawler every 6 hours
-    command: sh -c "while true; do npm run start; sleep 21600; done"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: uv run python start.py
 
-  # PostgreSQL Database (Optional - use if not using Supabase Cloud)
-  db:
-    image: supabase/postgres:15.1.0.147
-    environment:
-      - POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
-      - POSTGRES_DB=postgres
-    ports:
-      - "54322:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./supabase/migrations:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-
-  # Supabase Studio (Optional - for local database management)
-  studio:
-    image: supabase/studio:20231103-a6d43a6
-    environment:
-      - SUPABASE_URL=http://kong:8000
-      - STUDIO_PG_META_URL=http://meta:8080
-    ports:
-      - "54323:3000"
-    depends_on:
-      - kong
-    restart: unless-stopped
-
-  # Supabase Kong Gateway (Optional)
-  kong:
-    image: kong:2.8.1
-    environment:
-      - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/var/lib/kong/kong.yml
-      - KONG_DNS_ORDER=LAST,A,CNAME
-      - KONG_PLUGINS=request-size-limiting,cors,key-auth,acl,basic-auth
-    ports:
-      - "54321:8000"
-      - "54322:8443"
-    volumes:
-      - ./supabase/kong.yml:/var/lib/kong/kong.yml
-    restart: unless-stopped
-
-  # Nginx Reverse Proxy (Optional)
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - web
-    restart: unless-stopped
-
-  # Redis Cache (Optional - for enhanced performance)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
+networks:
+  app-network:
+    driver: bridge

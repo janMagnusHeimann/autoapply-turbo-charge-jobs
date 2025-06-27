@@ -25,9 +25,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Development bypass mode
-  const isDevelopment = import.meta.env.DEV;
-  const bypassAuth = isDevelopment && import.meta.env.VITE_BYPASS_AUTH === 'true';
+  // Development bypass mode - works in both dev and production when VITE_BYPASS_AUTH is true
+  const bypassAuth = import.meta.env.VITE_BYPASS_AUTH === 'true';
 
   const refreshUserData = async () => {
     if (!user) return;

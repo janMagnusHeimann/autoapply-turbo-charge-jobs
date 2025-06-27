@@ -71,13 +71,8 @@ export class AIAgentOrchestrator {
   };
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (apiKey) {
-      this.openai = new OpenAI({
-        apiKey,
-        dangerouslyAllowBrowser: true
-      });
-    }
+    // No longer need OpenAI client - using backend endpoints for security
+    this.openai = null;
   }
 
   setProgressCallback(callback: (progress: AgentProgress) => void) {

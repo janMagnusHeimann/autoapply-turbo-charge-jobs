@@ -44,16 +44,8 @@ export class AIVisionJobScraper {
   private debugMode: boolean = false;
 
   constructor(debugMode = false) {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not found. Required for AI Vision scraping.');
-    }
-
-    this.openai = new OpenAI({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true
-    });
-    
+    // No longer need OpenAI client - using backend endpoints for security
+    this.openai = null;
     this.debugMode = debugMode;
   }
 

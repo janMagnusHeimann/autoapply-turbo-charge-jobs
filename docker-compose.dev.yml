@@ -1,0 +1,56 @@
+version: '3.8'
+
+# Development Docker Compose - for local development with hot reload
+services:
+  # Frontend React/Vite Development Server
+  frontend-dev:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    ports:
+      - "8087:8087"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_GITHUB_CLIENT_ID=${VITE_GITHUB_CLIENT_ID}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+    networks:
+      - app-network
+    command: npm run dev -- --host 0.0.0.0 --port 8087
+
+  # Backend FastAPI Development Server
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.playwright
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - GITHUB_CLIENT_SECRET=${VITE_GITHUB_CLIENT_SECRET}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=DEBUG
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./backend:/app
+      - ./backend/logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - app-network
+    command: uv run python start.py
+
+# Note: Using Supabase for database - no local PostgreSQL needed
+# Note: No Redis currently used in the application
+
+networks:
+  app-network:
+    driver: bridge

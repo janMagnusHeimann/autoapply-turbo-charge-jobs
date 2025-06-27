@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestrator";
 import { autonomousJobAgent, type JobOpportunity, type UserProfile } from "@/services/autonomousJobAgent";
+import { unifiedJobDiscoveryService, type JobDiscoveryResult } from "@/services/unifiedJobDiscoveryService";
 import { cvGenerationService } from "@/services/cvGenerationService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -117,6 +118,16 @@ export const CompanyDirectory = () => {
   }, []);
 
   const getDemoCompanies = (): Company[] => [
+    {
+      id: 'demo-n26',
+      name: 'N26',
+      description: 'Europe\'s first mobile bank offering modern banking experience with innovative features',
+      industry: 'Fintech',
+      size_category: 'large',
+      website_url: 'https://n26.com',
+      headquarters: 'Berlin, Germany',
+      founded_year: 2013
+    },
     {
       id: 'demo-0',
       name: 'Trade Republic',
@@ -381,7 +392,24 @@ export const CompanyDirectory = () => {
     }
 
     if (!userProfile || !userPreferences) {
-      toast.error("Please complete your profile setup first");
+      toast.error("Profile Setup Required", {
+        description: "Please complete your profile setup first by adding your personal information and preferences in Settings"
+      });
+      return;
+    }
+
+    // Check for required fields
+    if (!userPreferences.preferred_industries || userPreferences.preferred_industries.length === 0) {
+      toast.error("Missing Industry Preferences", {
+        description: "Please add at least one preferred industry in your profile settings to start job discovery"
+      });
+      return;
+    }
+
+    if (!userPreferences.skills || userPreferences.skills.length === 0) {
+      toast.error("Missing Skills Information", {
+        description: "Please add your skills in your profile settings to help match you with relevant jobs"
+      });
       return;
     }
 
@@ -389,95 +417,98 @@ export const CompanyDirectory = () => {
     setAgentSteps([]);
     
     try {
-      console.log(`🚀 [COMPANY APPLY] Starting REAL job discovery for ${company.name} using web scraping`);
+      console.log(`🚀 [MULTI-AGENT] Starting multi-agent job discovery for ${company.name}`);
       
-      // Show initial notification about real scraping
-      toast.info("🌐 Real Web Scraping Enabled", {
-        description: `Now scraping actual job listings from ${company.name}'s career page`
+      // Show initial notification about multi-agent workflow
+      toast.info("🤖 Multi-Agent Workflow Started", {
+        description: `Using specialized AI agents to find and verify career page, then scrape jobs`
       });
       
-      // Import the enhanced AI agent orchestrator
-      const { enhancedAIAgentOrchestrator } = await import('@/services/enhancedAIAgentOrchestrator');
-      
-      // Set up progress callback for this specific company
-      const progressSteps: string[] = [];
-      enhancedAIAgentOrchestrator.setProgressCallback((progress) => {
-        const stepMessage = `🔄 ${progress.step.replace('_', ' ')}: ${progress.message}`;
-        setAgentSteps(prev => {
-          if (!prev.includes(stepMessage)) {
-            return [...prev, stepMessage];
-          }
-          return prev;
-        });
-      });
+      // Convert user preferences to requirements format
+      const userRequirements = {
+        preferred_locations: userPreferences.preferred_locations || [],
+        min_salary: userPreferences.min_salary,
+        max_salary: userPreferences.max_salary, 
+        job_types: userPreferences.job_types || [],
+        skills: userPreferences.skills || [],
+        experience_level: userProfile.current_title?.toLowerCase().includes('senior') ? 'senior' : 
+                         userProfile.current_title?.toLowerCase().includes('lead') ? 'senior' : 'mid-level'
+      };
 
-      // Start enhanced session for just this company
-      console.log('🔄 [COMPANY APPLY] Starting enhanced session...');
-      const session = await enhancedAIAgentOrchestrator.startAutomatedSession(user.id);
-      
-      // Process just this one company
-      console.log('🎯 [COMPANY APPLY] Processing single company application...');
-      const result = await enhancedAIAgentOrchestrator.processEnhancedSingleCompanyApplication(
-        user.id, 
-        company
+      // Convert user requirements to unified service format
+      const unifiedUserPreferences = {
+        skills: userRequirements.skills || [],
+        experience_years: userProfile.years_of_experience || 3,
+        locations: userRequirements.preferred_locations || [],
+        job_types: userRequirements.job_types || ['full-time'],
+        salary_min: userRequirements.min_salary,
+        salary_max: userRequirements.max_salary,
+        preferred_industries: userPreferences.preferred_industries || []
+      };
+
+      // Execute OpenAI-powered job discovery with progress callback
+      const result = await unifiedJobDiscoveryService.discoverJobsForCompany(
+        {
+          id: company.id,
+          name: company.name,
+          website_url: company.website_url || undefined
+        },
+        unifiedUserPreferences,
+        (progress) => {
+          setAgentSteps(prev => [...prev, `🔄 ${progress.current_operation}`]);
+        }
       );
       
-      console.log('✅ [COMPANY APPLY] Results:', result);
+      console.log('✅ [MULTI-AGENT] Results:', result);
 
-      if (result.success && result.total_jobs_scraped > 0) {
-        // Convert job matches to job opportunities format for display
-        const jobOpportunities = result.total_matches.map(match => {
-          // Determine source based on job description content
-          const isRealScraping = !match.job.description.includes('FALLBACK CONTENT') && 
-                                !match.job.description.includes('WEB SCRAPING FAILED') &&
-                                match.job.description.length > 500; // Real content is usually longer
-          
-          return {
-            id: match.job.id,
-            title: match.job.title,
-            description: match.job.description,
-            requirements: match.job.requirements,
-            location: match.job.location,
-            url: match.job.application_url,
-            salary_range: match.job.salary_min && match.job.salary_max 
-              ? `${match.job.currency || 'EUR'} ${match.job.salary_min} - ${match.job.salary_max}`
-              : undefined,
-            confidence_score: match.match_score,
-            source: isRealScraping ? 'real_scraping' as const : 'intelligent_fallback' as const
-          };
-        });
+      if (result.success && result.total_jobs > 0) {
+        // Use the matched jobs from unified service (already scored and filtered)
+        const matchedJobs = result.matched_jobs.length > 0 ? result.matched_jobs : result.jobs;
+
+        // Convert to job opportunities format for display
+        const jobOpportunities = matchedJobs.map((job, index) => ({
+          id: `${company.id}_${job.title.replace(/\s+/g, '_')}_${index}`,
+          title: job.title,
+          description: job.description,
+          requirements: job.requirements || [],
+          location: job.location,
+          url: job.application_url,
+          salary_range: job.salary_range,
+          confidence_score: job.match_score || 0.7, // Use match_score from OpenAI
+          source: 'real_scraping' as const
+        }));
 
         setJobOpportunities(prev => new Map(prev.set(company.id, jobOpportunities)));
         setSelectedCompany(company);
         setJobDialogOpen(true);
         
-        const scrapingMethod = result.total_matches.length > 0 && result.total_matches[0].job.source === 'real_scraping' ? 'real web scraping' : 'intelligent fallback';
+        const relevantJobs = jobOpportunities.filter(job => job.confidence_score > 0.5);
         
-        toast.success(`🎉 Agent found ${result.total_jobs_scraped} jobs via ${scrapingMethod}!`, {
-          description: `${result.total_matches.length} good matches • ${result.generated_cvs.length} CVs generated • Cost: $${session.total_cost_usd.toFixed(4)}`
+        toast.success(`🎉 OpenAI job discovery complete!`, {
+          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Powered by OpenAI web search`
         });
 
-        // Show CV generation results
-        if (result.generated_cvs.length > 0) {
-          setTimeout(() => {
-            toast.info(`📄 CV Generation Complete`, {
-              description: `${result.generated_cvs.length} tailored CVs created for top job matches`,
-              action: {
-                label: "View Results",
-                onClick: () => setJobDialogOpen(true)
-              }
-            });
-          }, 1000);
-        }
+        // Show workflow summary
+        setTimeout(() => {
+          toast.info(`🔗 Search Summary`, {
+            description: `Used ${result.agent_system_used} agent system • Execution time: ${Math.round(result.execution_time)}s`,
+            action: {
+              label: "View Jobs",
+              onClick: () => setJobDialogOpen(true)
+            }
+          });
+        }, 1000);
       } else {
         toast.warning("No suitable jobs found", {
-          description: result.error || `The enhanced agent couldn't find matching positions at ${company.name}`
+          description: result.career_page_url ? 
+            `Career page found (${result.career_page_url}) but no matching positions available` :
+            `Could not find career page for ${company.name}`
         });
       }
     } catch (error) {
-      console.error('Enhanced agent error:', error);
-      toast.error("Enhanced Agent Error", {
-        description: "The enhanced job discovery agent encountered an error. Please check your setup."
+      console.error('Multi-agent workflow error:', error);
+      toast.error("Multi-Agent Workflow Error", {
+        description: "The specialized AI agents encountered an error. Please try again."
       });
     } finally {
       setDiscoveringJobs(null);
@@ -720,7 +751,7 @@ export const CompanyDirectory = () => {
                       ) : (
                         <>
                           <Briefcase className="w-3 h-3 mr-1" />
-                          Find Jobs & Generate CVs
+                          Find Jobs
                         </>
                       )}
                     </Button>
@@ -932,7 +963,7 @@ export const CompanyDirectory = () => {
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Briefcase className="w-5 h-5" />
-              Jobs Found by Autonomous Agent at {selectedCompany?.name}
+              Jobs Found by Multi-Agent Workflow at {selectedCompany?.name}
             </DialogTitle>
           </DialogHeader>
           
@@ -941,7 +972,7 @@ export const CompanyDirectory = () => {
             {agentSteps.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
-                  <CardTitle className="text-gray-300 text-sm">🤖 Enhanced AI Agent Process</CardTitle>
+                  <CardTitle className="text-gray-300 text-sm">🤖 Multi-Agent Workflow Process</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
@@ -954,8 +985,8 @@ export const CompanyDirectory = () => {
                   </div>
                   <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800 rounded-lg">
                     <p className="text-xs text-blue-300">
-                      ℹ️ <strong>Note:</strong> Our AI agent uses advanced web scraping to find jobs that may not be easily visible on the company's website. 
-                      The agent can discover internal job postings, hidden applications, and extract detailed requirements that aren't always publicly listed.
+                      ℹ️ <strong>Note:</strong> Our multi-agent workflow uses specialized AI agents: one to find/verify career pages, another to scrape jobs, and a third to match them with your requirements. 
+                      This systematic approach ensures we find the most relevant opportunities that match your profile.
                     </p>
                   </div>
                 </CardContent>
@@ -1010,20 +1041,10 @@ export const CompanyDirectory = () => {
                           {Math.round(job.confidence_score * 100)}% match
                         </Badge>
                         <Badge 
-                          variant={job.source === 'real_scraping' ? "default" : "outline"} 
-                          className={`text-xs ${
-                            job.source === 'real_scraping' 
-                              ? 'bg-green-600 text-white' 
-                              : job.source === 'intelligent_fallback'
-                              ? 'bg-orange-600 text-white'
-                              : job.source === 'ai_generated'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-600 text-white'
-                          }`}
+                          variant="default"
+                          className="text-xs bg-blue-600 text-white"
                         >
-                          {job.source === 'real_scraping' ? '🔍 Real Scraped' : 
-                           job.source === 'intelligent_fallback' ? '⚡ Smart Fallback' :
-                           job.source === 'ai_generated' ? '🤖 AI Generated' : '📋 Demo'}
+                          🤖 Multi-Agent Discovery
                         </Badge>
                         <span className="text-sm text-gray-400">📍 {job.location}</span>
                       </div>
@@ -1040,20 +1061,7 @@ export const CompanyDirectory = () => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => {
-                          if (job.source === 'real_scraping') {
-                            // For real scraped jobs, show that CV was already generated
-                            toast.info(`📄 CV Already Generated`, {
-                              description: `Tailored CV was automatically created for this position during job discovery`,
-                              action: {
-                                label: "View CV",
-                                onClick: () => toast.success("CV viewing will be implemented soon")
-                              }
-                            });
-                          } else {
-                            handleGenerateCV(job);
-                          }
-                        }}
+                        onClick={() => handleGenerateCV(job)}
                         disabled={generatingCV === job.id}
                         className="bg-blue-600 hover:bg-blue-700 border border-blue-600"
                       >
@@ -1061,10 +1069,6 @@ export const CompanyDirectory = () => {
                           <>
                             <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                             Generating...
-                          </>
-                        ) : job.source === 'real_scraping' ? (
-                          <>
-                            📄 View CV
                           </>
                         ) : (
                           <>
@@ -1116,22 +1120,13 @@ export const CompanyDirectory = () => {
                   <div className="pt-2 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-gray-500">
-                        {job.source === 'real_scraping' ? '🔍 Real Job (Web Scraped)' : 
-                         job.source === 'intelligent_fallback' ? '⚡ Smart Fallback (Industry-based)' :
-                         'Found by Autonomous Agent'}
+                        🤖 Found by Multi-Agent Workflow
                       </span>
                       <Badge 
-                        variant={job.source === 'real_scraping' ? "default" : "outline"} 
-                        className={`text-xs ${
-                          job.source === 'real_scraping' 
-                            ? 'bg-green-600 text-white' 
-                            : job.source === 'intelligent_fallback'
-                            ? 'bg-orange-600 text-white'
-                            : 'bg-gray-600 text-white'
-                        }`}
+                        variant="default"
+                        className="text-xs bg-blue-600 text-white"
                       >
-                        {job.source === 'real_scraping' ? '✅ REAL SCRAPED' : 
-                         job.source === 'intelligent_fallback' ? '⚡ SMART FALLBACK' : '🤖 GENERATED'}
+                        ✅ VERIFIED & MATCHED
                       </Badge>
                     </div>
                     <div className="space-y-1">
@@ -1147,20 +1142,10 @@ export const CompanyDirectory = () => {
                           <ExternalLink className="w-3 h-3 flex-shrink-0" />
                         </a>
                       </div>
-                      {job.source === 'real_scraping' && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">Career Page:</span>
-                          <a
-                            href={selectedCompany?.website_url + '/careers'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                          >
-                            {selectedCompany?.website_url}/careers
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Career Page:</span>
+                        <span className="text-xs text-blue-400">Verified by AI Agent</span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>

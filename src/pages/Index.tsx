@@ -10,8 +10,9 @@ import { ApplicationHistory } from "@/components/dashboard/ApplicationHistory";
 import { Settings } from "@/components/dashboard/Settings";
 import { ReviewQueue } from "@/components/dashboard/ReviewQueue";
 import { AutomatedAgent } from "@/components/dashboard/AutomatedAgent";
+import { OpenAIJobSearch } from "@/components/dashboard/OpenAIJobSearch";
 
-export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'sources' | 'preferences' | 'agent' | 'queue' | 'history' | 'settings';
+export type DashboardView = 'dashboard' | 'profile' | 'companies' | 'sources' | 'preferences' | 'agent' | 'openai-search' | 'queue' | 'history' | 'settings';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
@@ -31,6 +32,8 @@ const Index = () => {
         return <JobPreferences />;
       case 'agent':
         return <AutomatedAgent />;
+      case 'openai-search':
+        return <OpenAIJobSearch />;
       case 'queue':
         return <ReviewQueue />;
       case 'history':
