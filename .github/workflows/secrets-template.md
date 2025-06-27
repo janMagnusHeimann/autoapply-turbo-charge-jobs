@@ -1,50 +1,90 @@
 # GitHub Actions Secrets Configuration
 
-This document outlines the required secrets for the CI/CD pipeline.
+This document outlines the environment variables and secrets needed for the CI/CD pipeline with real integration tests.
 
-## Required Secrets
+## Required Secrets for Real Integration Tests
 
-### Development/Testing (Optional - pipeline will work without these)
-- `OPENAI_API_KEY`: OpenAI API key for LLM functionality testing
-- `GITHUB_CLIENT_SECRET`: GitHub OAuth client secret for GitHub integration testing
-- `SUPABASE_URL`: Supabase project URL for database integration testing
-- `SUPABASE_ANON_KEY`: Supabase anonymous key for database access
+### GitHub Service Integration
+```
+GITHUB_TEST_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GITHUB_TEST_USERNAME=your-github-username
+GITHUB_CLIENT_ID=your-github-oauth-app-client-id
+GITHUB_CLIENT_SECRET=your-github-oauth-app-client-secret
+```
 
-### Production (Required for production deployments)
-- `DOCKER_REGISTRY_USERNAME`: Docker registry username for image pushing
-- `DOCKER_REGISTRY_PASSWORD`: Docker registry password for image pushing
-- `PRODUCTION_SUPABASE_URL`: Production Supabase URL
-- `PRODUCTION_SUPABASE_KEY`: Production Supabase service key
+### Supabase Database Integration
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
-## Setting Up Secrets
+### Optional Services
+```
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
 
-1. Go to your GitHub repository
-2. Click on "Settings" tab
-3. Navigate to "Secrets and variables" → "Actions"
-4. Click "New repository secret"
-5. Add each secret with its corresponding value
+### Production Deployment (Optional)
+```
+DOCKER_REGISTRY_USERNAME=your-docker-username
+DOCKER_REGISTRY_PASSWORD=your-docker-password
+PRODUCTION_SUPABASE_URL=https://production.supabase.co
+PRODUCTION_SUPABASE_KEY=production-service-key
+```
 
-## Environment-Specific Configuration
+## Setting Up GitHub Secrets
 
-### Development
-- Uses local Supabase instance (supabase start)
-- Mock API keys for testing
-- Reduced timeouts and limits for faster tests
+1. Go to your repository Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Add each secret from the list above
 
-### Testing (CI/CD)
-- Uses Supabase CLI with local instance
-- Test API keys that don't make real API calls
-- Minimal resource usage for faster pipeline execution
+## Development vs Production
 
-### Production
-- Real API keys and production Supabase instance
-- Full resource limits and timeouts
-- Security scanning and vulnerability checks
+### Development Environment
+- Tests run with mock data when real credentials aren't available
+- Non-blocking tests that skip if credentials missing
+- Local Supabase instance for development
+
+### Production Environment  
+- Full integration tests with real API calls
+- Database operations on test tables
+- Rate limiting and error handling validation
 
 ## Security Notes
 
-- Never commit real API keys to the repository
-- Use GitHub's encrypted secrets for sensitive data
-- Regularly rotate API keys and secrets
-- Test secrets should be clearly marked as test/mock values
-- Production secrets should have restricted access
+- **Never commit real credentials to code**
+- Use different credentials for testing vs production
+- GitHub test tokens should have minimal permissions
+- Supabase service role key needed for admin operations
+- Consider using separate test project for Supabase
+
+## Test Token Permissions
+
+### GitHub Test Token Permissions
+- `repo` - Access repositories
+- `user:email` - Read user email
+
+### Supabase Test Setup
+- Create test tables with same schema as production
+- Use service role key for bypassing RLS in tests
+- Set up test data cleanup procedures
+
+## Running Tests Locally
+
+```bash
+# With real credentials
+export GITHUB_TEST_TOKEN=your_token
+export SUPABASE_URL=your_url
+export SUPABASE_SERVICE_ROLE_KEY=your_key
+
+cd backend
+uv run pytest tests/test_github_integration.py -v
+uv run pytest tests/test_scholar_integration.py -v  
+uv run pytest tests/test_supabase_integration.py -v
+```
+
+```bash
+# Without credentials (mock tests only)
+cd backend
+uv run pytest tests/test_services.py -v
+```
