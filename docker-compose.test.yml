@@ -1,8 +1,5 @@
-version: '3.8'
-
-# Test Docker Compose - minimal setup for testing without API keys
 services:
-  # Frontend React/Vite Application
+  # Frontend React/Vite Application - Test Configuration
   frontend:
     build: 
       context: .
@@ -10,46 +7,93 @@ services:
     ports:
       - "8087:8087"
     environment:
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_SUPABASE_URL=http://localhost:54321
+      - VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
       - VITE_API_BASE_URL=http://localhost:8000
-      - VITE_GITHUB_CLIENT_ID=${VITE_GITHUB_CLIENT_ID}
+      - VITE_GITHUB_CLIENT_ID=test-client-id
       - VITE_BYPASS_AUTH=true
     depends_on:
-      - backend
-    restart: unless-stopped
+      backend:
+        condition: service_healthy
+    restart: "no"
     networks:
-      - app-network
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
-  # Backend FastAPI Service (with fallback mock keys for testing)
+  # Backend FastAPI Service - Test Configuration
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-test-key-for-docker-testing}
-
-              - GITHUB_CLIENT_SECRET=${VITE_GITHUB_CLIENT_SECRET:-test-github-secret}
+      # Test environment variables
+      - OPENAI_API_KEY=test-openai-key
+      - GITHUB_CLIENT_SECRET=test-client-secret
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - LOG_LEVEL=DEBUG
-      - SUPABASE_URL=${VITE_SUPABASE_URL}
-      - SUPABASE_KEY=${VITE_SUPABASE_ANON_KEY}
-      - DEMO_MODE=${DEMO_MODE:-true}
+      - DEMO_MODE=true
+      
+      # Unified System Configuration
+      - ENABLE_API_DOCS=true
+      - API_PREFIX=/api
+      
+      # LLM Configuration - Test settings
+      - DEFAULT_LLM_PROVIDER=openai
+      - DEFAULT_LLM_MODEL=gpt-4o-mini
+      - VISION_MODEL=gpt-4o-mini
+      - CHEAP_MODEL=gpt-4o-mini
+      - LLM_TEMPERATURE=0.1
+      - LLM_MAX_TOKENS=1000
+      - LLM_TIMEOUT=10
+      
+      # Agent Configuration - Fast test settings
+      - AGENT_MAX_RETRIES=1
+      - AGENT_TIMEOUT=10
+      - AGENT_MEMORY_LIMIT=10
+      - USE_CHEAPER_MODELS=true
+      - VISION_ENABLED=false
+      
+      # Browser Automation - Disabled for tests
+      - USE_BROWSER_AUTOMATION=false
+      - BROWSER_HEADLESS=true
+      - BROWSER_TIMEOUT=5000
+      - MAX_BROWSER_INSTANCES=1
+      - SAVE_SCREENSHOTS=false
+      
+      # Workflow Settings - Fast test settings
+      - MAX_CONCURRENT_AGENTS=1
+      - DEFAULT_MAX_EXECUTION_TIME=30
+      - DEFAULT_MAX_PAGES_PER_SITE=2
+      - ENABLE_PARALLEL_PROCESSING=false
+      - MAX_CONCURRENT_COMPANIES=1
+      - CACHE_TTL_SECONDS=60
+      - ENABLE_METRICS=true
+      
+      # Logging
+      - ENABLE_CONSOLE_LOGGING=true
+      - LOG_FILE_PATH=/app/logs/test.log
+    
     volumes:
       - ./backend/logs:/app/logs
-    restart: unless-stopped
+    restart: "no"
     networks:
-      - app-network
+      - test-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
-    command: python start.py
+      start_period: 30s
+    command: uv run python start.py
 
 networks:
-  app-network:
+  test-network:
     driver: bridge
