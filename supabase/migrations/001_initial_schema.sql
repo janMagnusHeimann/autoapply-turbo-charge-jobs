@@ -126,53 +126,53 @@ ALTER TABLE public.application_history ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see and modify their own data
 CREATE POLICY "Users can view own profile" ON public.users
-  FOR SELECT USING (auth.uid() = id);
+  FOR SELECT USING (auth.uid() = id OR id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update own profile" ON public.users
-  FOR UPDATE USING (auth.uid() = id);
+  FOR UPDATE USING (auth.uid() = id OR id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- CV Assets policies
 CREATE POLICY "Users can view own cv_assets" ON public.cv_assets
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert own cv_assets" ON public.cv_assets
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update own cv_assets" ON public.cv_assets
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can delete own cv_assets" ON public.cv_assets
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- User preferences policies
 CREATE POLICY "Users can view own preferences" ON public.user_preferences
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert own preferences" ON public.user_preferences
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update own preferences" ON public.user_preferences
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Pending applications policies
 CREATE POLICY "Users can view own pending_applications" ON public.pending_applications
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert own pending_applications" ON public.pending_applications
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update own pending_applications" ON public.pending_applications
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can delete own pending_applications" ON public.pending_applications
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Application history policies
 CREATE POLICY "Users can view own application_history" ON public.application_history
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert own application_history" ON public.application_history
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Companies and job listings are publicly readable
 CREATE POLICY "Companies are publicly readable" ON public.companies

@@ -16,8 +16,8 @@ dependencies = [
     # Database Integration
     "supabase>=2.0.0",
     
-    # Browser Automation (Optional)
-    "playwright==1.40.0",
+    # Browser Automation (Optional - can be removed for web search approach)
+    # "playwright==1.40.0",
     
     # Web Scraping & HTTP
     "aiohttp==3.9.1",

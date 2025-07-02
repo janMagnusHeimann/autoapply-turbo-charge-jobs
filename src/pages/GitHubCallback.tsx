@@ -22,11 +22,24 @@ export default function GitHubCallback() {
         const state = searchParams.get('state');
 
         if (error) {
-          throw new Error(`GitHub OAuth error: ${error}`);
+          console.warn(`GitHub OAuth error: ${error}`);
+          setMessage(`GitHub OAuth failed: ${error}`);
+          setStatus('error');
+          return;
         }
 
         if (!code) {
-          throw new Error('No authorization code received from GitHub');
+          // Don't throw error if no code - user might have just visited the page
+          console.log('No GitHub authorization code found, skipping OAuth');
+          navigate('/', { replace: true });
+          return;
+        }
+
+        // Additional check: ensure we're actually on the callback route
+        if (!window.location.pathname.includes('/auth/github/callback')) {
+          console.log('Not on GitHub callback route, skipping OAuth processing');
+          navigate('/', { replace: true });
+          return;
         }
 
         // Wait for user to be available (for development mode)

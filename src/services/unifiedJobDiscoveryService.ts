@@ -140,16 +140,15 @@ class UnifiedJobDiscoveryService {
       const openaiUserPrefs = this.convertToOpenAIUserPreferences(userPreferences);
       console.log(`🔍 [UnifiedService] Converted user preferences:`, JSON.stringify(openaiUserPrefs, null, 2));
 
-      // Start the discovery request using OpenAI endpoint
-      const fullUrl = `${this.API_BASE_URL}${this.API_PREFIX}/openai/search-single-company`;
-      console.log(`🚀 [UnifiedService] About to make fetch request to: ${fullUrl}`);
+      // Start the discovery request using new web search endpoint
+      const fullUrl = `${this.API_BASE_URL}/api/web-search-job-discovery`;
+      console.log(`🚀 [UnifiedService] About to make web search request to: ${fullUrl}`);
       
       const requestBody = {
-        company: company.name,
-        website: company.website_url || `https://${company.name.toLowerCase().replace(/\s+/g, '')}.com`,
+        company_id: company.name,
+        company_website: company.website_url || `https://${company.name.toLowerCase().replace(/\s+/g, '')}.com`,
         user_preferences: openaiUserPrefs,
-        top_k: 10,
-        use_cache: true
+        use_browser_automation: false  // We're using web search, not browser automation
       };
       console.log(`📤 [UnifiedService] Request body:`, JSON.stringify(requestBody, null, 2));
       
@@ -167,32 +166,32 @@ class UnifiedJobDiscoveryService {
 
       const apiResponse = await response.json();
       
-      if (apiResponse.status !== 'success' || !apiResponse.data) {
-        throw new Error(apiResponse.message || 'OpenAI job discovery failed');
+      if (apiResponse.status !== 'success') {
+        throw new Error(apiResponse.error || 'Web search job discovery failed');
       }
 
-      const openaiResult = apiResponse.data;
+      const webSearchResult = apiResponse;
 
-      // Convert OpenAI result to unified format
+      // Convert web search result to unified format
       const result: JobDiscoveryResult = {
-        success: openaiResult.total_jobs_found > 0,
+        success: webSearchResult.total_jobs > 0,
         company_name: company.name,
-        career_page_url: company.website_url,
-        total_jobs: openaiResult.total_jobs_found,
-        jobs: this.convertOpenAIJobsToUnified(openaiResult.top_matches),
-        matched_jobs: this.convertOpenAIJobsToUnified(openaiResult.top_matches),
-        execution_time: openaiResult.search_duration_seconds,
-        extraction_method: 'openai_web_search',
-        used_browser: false,
-        agent_system_used: 'new',
+        career_page_url: webSearchResult.career_page_url,
+        total_jobs: webSearchResult.total_jobs,
+        jobs: this.convertWebSearchJobsToUnified(webSearchResult.matched_jobs),
+        matched_jobs: this.convertWebSearchJobsToUnified(webSearchResult.matched_jobs),
+        execution_time: webSearchResult.execution_time,
+        extraction_method: webSearchResult.extraction_method || 'web_search',
+        used_browser: webSearchResult.used_browser || false,
+        agent_system_used: webSearchResult.discovery_method || 'web_search_agent',
         workflow_progress: {
-          queries_used: openaiResult.search_queries_used,
-          sources_searched: openaiResult.sources_searched,
-          average_match_score: openaiResult.average_match_score
+          queries_used: [],
+          sources_searched: [],
+          average_match_score: 0.7
         }
       };
 
-      console.log(`✅ OpenAI job discovery completed for ${company.name}:`, {
+      console.log(`✅ Web search job discovery completed for ${company.name}:`, {
         success: result.success,
         total_jobs: result.total_jobs,
         matched_jobs: result.matched_jobs.length,
@@ -203,7 +202,7 @@ class UnifiedJobDiscoveryService {
       return result;
 
     } catch (error) {
-      console.error(`❌ OpenAI job discovery failed for ${company.name}:`, error);
+      console.error(`❌ Web search job discovery failed for ${company.name}:`, error);
       
       // Return error result
       return {
@@ -214,7 +213,7 @@ class UnifiedJobDiscoveryService {
         matched_jobs: [],
         execution_time: 0,
         used_browser: false,
-        agent_system_used: 'new',
+        agent_system_used: 'web_search_agent',
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
@@ -573,6 +572,33 @@ class UnifiedJobDiscoveryService {
         match_score: rankedJob.match_score || 0.5,
         match_reasoning: rankedJob.match_explanation || 'Good match',
         matching_skills: rankedJob.matching_skills || [],
+        location_details: job.location || 'Remote'
+      };
+    });
+  }
+
+  /**
+   * Convert web search jobs to unified format
+   */
+  convertWebSearchJobsToUnified(webSearchJobs: any[]): JobListing[] {
+    if (!webSearchJobs || !Array.isArray(webSearchJobs)) {
+      return [];
+    }
+
+    return webSearchJobs.map(job => {
+      return {
+        title: job.title || 'Software Engineer',
+        location: job.location || 'Remote',
+        department: job.department,
+        job_type: job.employment_type || job.job_type,
+        experience_level: job.experience_level,
+        description: job.description || job.snippet || '',
+        application_url: job.application_url || job.url || '#',
+        requirements: job.requirements || [],
+        salary_range: job.salary_range || job.salary,
+        match_score: job.match_score || 0.5,
+        match_reasoning: job.reasoning || 'Good match based on web search',
+        matching_skills: job.key_strengths || [],
         location_details: job.location || 'Remote'
       };
     });

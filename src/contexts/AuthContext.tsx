@@ -44,14 +44,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    // Development bypass mode
-    if (bypassAuth) {
-      console.log('🔓 Development mode: Creating mock user session');
+  const initializeAndLoadUserData = async (user: User) => {
+    try {
+      console.log('AuthContext: Starting user data initialization...');
       
-      // Create mock user for development with valid UUID
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Initialization timeout')), 10000)
+      );
+      
+      // Initialize user data if needed
+      await Promise.race([
+        UserService.initializeUserData(user),
+        timeoutPromise
+      ]);
+      console.log('AuthContext: User data initialized');
+      
+      // Load user profile and preferences
+      console.log('AuthContext: Loading profile and preferences...');
+      const [profile, preferences] = await Promise.all([
+        UserService.getUserProfile(user.id),
+        UserService.getUserPreferences(user.id)
+      ]);
+      console.log('AuthContext: Profile and preferences loaded');
+
+      setUserProfile(profile);
+      setUserPreferences(preferences);
+      console.log('AuthContext: User data set in state');
+    } catch (error) {
+      console.error('Error initializing user data:', error);
+      // Don't let errors prevent app from loading
+      setUserProfile(null);
+      setUserPreferences(null);
+    }
+  };
+
+  useEffect(() => {
+    // Development bypass mode - but still load real data from Supabase
+    if (bypassAuth) {
+      console.log('🔓 Development mode: Creating mock user session with real data');
+      
+      // Create mock user for development with real UUID from Supabase
       const mockUser = {
-        id: '12345678-1234-1234-1234-123456789012',
+        id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
         email: 'dev@example.com',
         user_metadata: { full_name: 'Development User' }
       } as User;
@@ -61,49 +96,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         access_token: 'mock-token'
       } as Session;
 
-      // Create mock profile and preferences
-      const mockProfile: UserProfile = {
-        id: 'dev-profile-123',
-        user_id: '12345678-1234-1234-1234-123456789012',
-        full_name: 'Development User',
-        email: 'dev@example.com',
-        phone: '+1234567890',
-        location: 'Berlin, Germany',
-        linkedin_url: 'https://linkedin.com/in/dev-user',
-        github_url: 'https://github.com/dev-user',
-        portfolio_url: 'https://dev-user.com',
-        professional_summary: 'Experienced software engineer passionate about building innovative solutions.',
-        current_title: 'Senior Software Engineer',
-        github_username: 'dev-user',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const mockPreferences: UserPreferences = {
-        id: 'dev-prefs-123',
-        user_id: '12345678-1234-1234-1234-123456789012',
-        excluded_companies: [],
-        preferred_locations: ['Berlin', 'Munich', 'Remote'],
-        min_salary: 65000,
-        max_salary: 95000,
-        currency: 'EUR',
-        job_types: ['full-time'],
-        remote_preference: 'hybrid',
-        preferred_industries: ['Technology', 'Software', 'Fintech'],
-        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python'],
-        preferred_company_sizes: ['startup', 'medium', 'large'],
-        preferred_remote: 'hybrid',
-        preferred_job_types: ['full-time'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
+      // Set user and session first
       setUser(mockUser);
       setSession(mockSession);
-      setUserProfile(mockProfile);
-      setUserPreferences(mockPreferences);
-      setLoading(false);
+
+      // Use the real profile data we created earlier, and create minimal preferences
+      console.log('Using real Supabase profile data with minimal preferences...');
       
+      const realProfile: UserProfile = {
+        id: '4705463c-6f04-4572-b52c-22d2b800dc5b',
+        user_id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
+        full_name: 'Demo User',
+        email: 'demo@example.com',
+        phone: null,
+        location: 'Berlin, Germany',
+        linkedin_url: null,
+        github_url: null,
+        portfolio_url: null,
+        professional_summary: 'Experienced software developer with expertise in full-stack development',
+        current_title: 'Senior Software Engineer',
+        github_username: 'demouser',
+        created_at: '2025-07-01T22:09:39.821909+00:00',
+        updated_at: '2025-07-01T22:09:39.821909+00:00'
+      };
+
+      const minimalPreferences: UserPreferences = {
+        id: 'demo-prefs-123',
+        user_id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
+        excluded_companies: [],
+        preferred_locations: ['Berlin', 'Remote'],
+        min_salary: 60000,
+        max_salary: 120000,
+        preferred_remote: 'any',
+        preferred_industries: ['Technology', 'Fintech'],
+        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python'],
+        preferred_company_sizes: ['startup', 'medium'],
+        preferred_job_types: ['full-time'],
+        job_types: ['full-time'],
+        remote_preference: 'any',
+        currency: 'EUR',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUserProfile(realProfile);
+      setUserPreferences(minimalPreferences);
+      setLoading(false);
       return;
     }
 
@@ -128,40 +166,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    const initializeAndLoadUserData = async (user: User) => {
-      try {
-        console.log('AuthContext: Starting user data initialization...');
-        
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Initialization timeout')), 10000)
-        );
-        
-        // Initialize user data if needed
-        await Promise.race([
-          UserService.initializeUserData(user),
-          timeoutPromise
-        ]);
-        console.log('AuthContext: User data initialized');
-        
-        // Load user profile and preferences
-        console.log('AuthContext: Loading profile and preferences...');
-        const [profile, preferences] = await Promise.all([
-          UserService.getUserProfile(user.id),
-          UserService.getUserPreferences(user.id)
-        ]);
-        console.log('AuthContext: Profile and preferences loaded');
-
-        setUserProfile(profile);
-        setUserPreferences(preferences);
-        console.log('AuthContext: User data set in state');
-      } catch (error) {
-        console.error('Error initializing user data:', error);
-        // Don't let errors prevent app from loading
-        setUserProfile(null);
-        setUserPreferences(null);
-      }
-    };
 
     if (!bypassAuth) {
       getSession();

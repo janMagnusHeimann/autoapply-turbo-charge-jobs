@@ -7,7 +7,7 @@ from ..core.models.user_preferences import UserPreferences
 from ..core.models.job_listing import JobListing
 
 class SearchPrompts:
-    """Centralized search prompts for job discovery"""
+    """Centralized search prompts for job discovery with web search optimization"""
     
     @staticmethod
     def build_enhanced_job_search_prompt(

@@ -7,10 +7,16 @@ from pydantic import BaseModel, Field
 from enum import Enum
 
 class JobType(str, Enum):
+    # Work arrangement
     REMOTE = "remote"
     HYBRID = "hybrid"
     ONSITE = "onsite"
     FLEXIBLE = "flexible"
+    # Employment type
+    FULL_TIME = "full-time"
+    PART_TIME = "part-time"
+    CONTRACT = "contract"
+    FREELANCE = "freelance"
 
 class ExperienceLevel(str, Enum):
     ENTRY = "entry"
@@ -18,6 +24,13 @@ class ExperienceLevel(str, Enum):
     SENIOR = "senior"
     LEAD = "lead"
     EXECUTIVE = "executive"
+
+class CompanySize(str, Enum):
+    STARTUP = "startup"
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+    ENTERPRISE = "enterprise"
 
 class UserPreferences(BaseModel):
     """User job search preferences"""
@@ -39,7 +52,7 @@ class UserPreferences(BaseModel):
     
     # Company preferences
     industries: List[str] = Field(default=[], description="Preferred industries")
-    company_size: List[str] = Field(default=[], description="Preferred company sizes")
+    company_size: List[CompanySize] = Field(default=[], description="Preferred company sizes")
     
     class Config:
         use_enum_values = True

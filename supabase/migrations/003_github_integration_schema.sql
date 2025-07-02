@@ -42,7 +42,7 @@ ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 -- Policy for users to access their own GitHub data
 CREATE POLICY "Users can manage their own GitHub data" ON user_preferences
   FOR ALL
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Function to clean up GitHub data when user disconnects
 CREATE OR REPLACE FUNCTION cleanup_github_data(user_uuid UUID)

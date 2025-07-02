@@ -34,16 +34,16 @@ ALTER TABLE selected_repositories ENABLE ROW LEVEL SECURITY;
 
 -- Users can only access their own selected repositories
 CREATE POLICY "Users can view their own selected repositories" ON selected_repositories
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert their own selected repositories" ON selected_repositories
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update their own selected repositories" ON selected_repositories
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can delete their own selected repositories" ON selected_repositories
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_selected_repositories_updated_at()

@@ -1,12 +1,20 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, supabaseServiceRole } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 export interface UserProfile {
   id: string;
+  user_id: string;
   email: string;
   full_name: string | null;
+  phone?: string | null;
+  location?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+  professional_summary?: string | null;
+  current_title?: string | null;
   github_username: string | null;
-  scholar_url: string | null;
+  years_of_experience?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,7 +35,35 @@ export interface UserPreferences {
   updated_at: string;
 }
 
+export interface CVAsset {
+  id: string;
+  user_id: string;
+  asset_type: 'repository' | 'publication' | 'skill' | 'experience' | 'education' | 'other';
+  title: string;
+  description: string | null;
+  metadata: any;
+  tags: string[];
+  external_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComprehensiveUserProfile {
+  profile: UserProfile;
+  preferences: UserPreferences;
+  experiences: CVAsset[];
+  education: CVAsset[];
+  other: CVAsset[];
+  repositories: CVAsset[];
+  publications: CVAsset[];
+}
+
 export class UserService {
+  // Get the appropriate client (service role for bypass mode, regular for auth)
+  private static getClient() {
+    return supabaseServiceRole || supabase;
+  }
+
   static async initializeUserData(user: User): Promise<void> {
     try {
       console.log('UserService: Checking existing user...');
@@ -38,9 +74,9 @@ export class UserService {
         setTimeout(() => reject(new Error('Database query timeout')), timeoutMs)
       );
       
-      // Check if user profile already exists
-      const { data: existingUser, error: checkError } = await Promise.race([
-        supabase.from('users').select('id').eq('id', user.id).single(),
+      // Check if user profile already exists in user_profiles table
+      const { data: existingProfile, error: checkError } = await Promise.race([
+        supabase.from('user_profiles').select('id').eq('user_id', user.id).single(),
         timeoutPromise
       ]) as any;
 
@@ -49,28 +85,34 @@ export class UserService {
         throw checkError;
       }
 
-      console.log('UserService: Existing user check result:', !!existingUser);
-      if (existingUser) {
-        console.log('UserService: User already exists, skipping initialization');
+      console.log('UserService: Existing user profile check result:', !!existingProfile);
+      if (existingProfile) {
+        console.log('UserService: User profile already exists, skipping initialization');
         return; // User already initialized
       }
 
       console.log('UserService: Creating user profile...');
-      // Create user profile if it doesn't exist (fallback for trigger failure)
-      const { error: userError } = await Promise.race([
-        supabase.from('users').insert({
-          id: user.id,
+      // Create user profile in user_profiles table
+      const { error: profileError } = await Promise.race([
+        supabase.from('user_profiles').insert({
+          user_id: user.id,
           email: user.email!,
           full_name: user.user_metadata?.full_name || null,
           github_username: null,
-          scholar_url: null
+          phone: null,
+          location: null,
+          linkedin_url: null,
+          github_url: null,
+          portfolio_url: null,
+          professional_summary: null,
+          current_title: null
         }),
         timeoutPromise
       ]) as any;
 
-      if (userError && !userError.message.includes('duplicate key')) {
-        console.error('UserService: Error creating user profile:', userError);
-        throw userError;
+      if (profileError && !profileError.message.includes('duplicate key')) {
+        console.error('UserService: Error creating user profile:', profileError);
+        throw profileError;
       }
       console.log('UserService: User profile created');
 
@@ -89,7 +131,7 @@ export class UserService {
   static async createDefaultUserPreferences(userId: string): Promise<void> {
     try {
       console.log('UserService: Inserting default preferences for user:', userId);
-      const { error } = await supabase
+      const { error } = await this.getClient()
         .from('user_preferences')
         .insert({
           user_id: userId,
@@ -123,7 +165,7 @@ export class UserService {
       );
 
       const { data, error } = await Promise.race([
-        supabase.from('users').select('*').eq('id', userId).single(),
+        supabase.from('user_profiles').select('*').eq('user_id', userId).single(),
         timeoutPromise
       ]) as any;
 
@@ -146,9 +188,9 @@ export class UserService {
   static async updateUserProfile(userId: string, updates: Partial<Omit<UserProfile, 'id' | 'created_at' | 'updated_at'>>): Promise<UserProfile | null> {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('user_profiles')
         .update(updates)
-        .eq('id', userId)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -171,7 +213,7 @@ export class UserService {
       );
 
       const { data, error } = await Promise.race([
-        supabase.from('user_preferences').select('*').eq('user_id', userId).single(),
+        this.getClient().from('user_preferences').select('*').eq('user_id', userId).single(),
         timeoutPromise
       ]) as any;
 
@@ -195,7 +237,7 @@ export class UserService {
 
   static async updateUserPreferences(userId: string, updates: Partial<Omit<UserPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<UserPreferences | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.getClient()
         .from('user_preferences')
         .update(updates)
         .eq('user_id', userId)
@@ -424,6 +466,52 @@ export class UserService {
     } catch (error) {
       console.error('Error fetching filtered companies:', error);
       return [];
+    }
+  }
+
+  static async getComprehensiveUserProfile(userId: string): Promise<ComprehensiveUserProfile | null> {
+    try {
+      console.log('UserService: Fetching comprehensive user profile...');
+      
+      // Fetch all data in parallel
+      const [profile, preferences, allAssets] = await Promise.all([
+        this.getUserProfile(userId),
+        this.getUserPreferences(userId),
+        this.getUserCVAssets(userId)
+      ]);
+
+      if (!profile || !preferences) {
+        console.log('UserService: Missing basic profile or preferences data');
+        return null;
+      }
+
+      // Group assets by type
+      const experiences = allAssets.filter(asset => asset.asset_type === 'experience');
+      const education = allAssets.filter(asset => asset.asset_type === 'education');
+      const other = allAssets.filter(asset => asset.asset_type === 'other');
+      const repositories = allAssets.filter(asset => asset.asset_type === 'repository');
+      const publications = allAssets.filter(asset => asset.asset_type === 'publication');
+
+      console.log('UserService: Comprehensive profile assembled:', {
+        experiencesCount: experiences.length,
+        educationCount: education.length,
+        otherCount: other.length,
+        repositoriesCount: repositories.length,
+        publicationsCount: publications.length
+      });
+
+      return {
+        profile,
+        preferences,
+        experiences,
+        education,
+        other,
+        repositories,
+        publications
+      };
+    } catch (error) {
+      console.error('Error fetching comprehensive user profile:', error);
+      return null;
     }
   }
 }

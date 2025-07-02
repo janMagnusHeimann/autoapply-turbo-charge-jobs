@@ -3,7 +3,7 @@ Simplified Job Discovery API - Single endpoint for job discovery workflow
 """
 
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
 import os
@@ -14,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from ...config import config
-from ...application.orchestrator import JobDiscoveryOrchestrator, create_orchestrator
+# from ...application.orchestrator import JobDiscoveryOrchestrator, create_orchestrator  # Disabled for web search
+from ...application.web_search_job_service import WebSearchJobService
 from ...infrastructure.clients.openai_client import create_openai_client
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global orchestrator instance
-orchestrator: JobDiscoveryOrchestrator = None
+# Global service instances
+# orchestrator: JobDiscoveryOrchestrator = None  # Disabled for web search
+web_search_service: WebSearchJobService = None
 
 # Request/Response Models
 class JobDiscoveryRequest(BaseModel):
@@ -59,19 +61,19 @@ class GitHubOAuthRequest(BaseModel):
 class JobDiscoveryResponse(BaseModel):
     status: str
     company: str
-    career_page_url: str = None
+    career_page_url: Optional[str] = None
     total_jobs: int = 0
     matched_jobs: List[Dict[str, Any]] = []
     execution_time: float = 0.0
-    extraction_method: str = None
+    extraction_method: Optional[str] = None
     used_browser: bool = False
-    discovery_method: str = None
-    error: str = None
+    discovery_method: Optional[str] = None
+    error: Optional[str] = None
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the orchestrator on startup"""
-    global orchestrator
+    """Initialize services on startup"""
+    global web_search_service
     
     logger.info("🚀 Starting Job Discovery API")
     
@@ -86,11 +88,15 @@ async def startup_event():
         if not openai_client.is_available():
             logger.warning("⚠️ OpenAI client not available - API will use mock responses")
         
-        # Initialize orchestrator
-        orchestrator = await create_orchestrator(
-            openai_client=openai_client,
-            use_browser=config.browser_headless,  # Use browser if configured
-        )
+        # Initialize orchestrator (legacy support) - DISABLED for web search approach
+        # orchestrator = await create_orchestrator(
+        #     openai_client=openai_client,
+        #     use_browser=config.browser_headless,  # Use browser if configured
+        # )
+        # orchestrator = None  # Disable legacy orchestrator
+        
+        # Initialize web search service (new simplified approach)
+        web_search_service = WebSearchJobService(config)
         
         logger.info("✅ Job Discovery API startup complete")
         
@@ -101,12 +107,11 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    global orchestrator
+    global web_search_service
     
     logger.info("👋 Shutting down Job Discovery API")
     
-    if orchestrator:
-        await orchestrator.cleanup()
+    # No cleanup needed for web search service
     
     logger.info("✅ Shutdown complete")
 
@@ -116,116 +121,102 @@ async def health_check():
     return {
         "status": "healthy",
         "version": "2.0.0",
-        "system": "simplified-job-discovery",
+        "system": "simplified-job-discovery-web-search",
         "demo_mode": config.demo_mode,
-        "openai_available": orchestrator.openai_client.is_available() if orchestrator else False,
-        "browser_available": orchestrator.browser_controller is not None if orchestrator else False,
+        "web_search_available": web_search_service.is_available() if web_search_service else False,
+        "browser_automation": False,  # Disabled for web search approach
         "timestamp": datetime.utcnow().isoformat()
     }
 
-@app.post("/api/job-discovery", response_model=JobDiscoveryResponse)
-async def discover_jobs(request: JobDiscoveryRequest):
+# LEGACY ENDPOINT - DISABLED FOR WEB SEARCH APPROACH
+# Legacy job discovery endpoint has been removed - use /api/web-search-job-discovery instead
+
+@app.post("/api/web-search-job-discovery")
+async def discover_jobs_web_search(request: JobDiscoveryRequest):
     """
-    Main job discovery endpoint for a single company
+    Simplified job discovery using OpenAI web search (NEW)
     """
-    if not orchestrator:
-        raise HTTPException(status_code=503, detail="Service not initialized")
+    if not web_search_service:
+        raise HTTPException(status_code=503, detail="Web search service not initialized")
     
     try:
-        logger.info(f"🔍 Job discovery request for {request.company_id}")
+        logger.info(f"🔍 Web search job discovery for {request.company_id}")
         
-        # Execute job discovery
-        result = await orchestrator.discover_jobs(
-            company=request.company_id,
-            website=request.company_website,
-            user_preferences=request.user_preferences
+        # Convert request to format expected by web search service
+        from ...core.models.user_preferences import UserPreferences
+        
+        # Create user preferences object
+        user_prefs = UserPreferences(
+            skills=request.user_preferences.get('skills', []),
+            locations=request.user_preferences.get('locations', []),
+            job_types=request.user_preferences.get('job_types', []),
+            salary_min=request.user_preferences.get('salary_min'),
+            salary_max=request.user_preferences.get('salary_max'),
+            experience_level=request.user_preferences.get('experience_level', 'mid'),
+            experience_years=request.user_preferences.get('experience_years', 3)
+        )
+        
+        company_info = {
+            'name': request.company_id,
+            'website_url': request.company_website
+        }
+        
+        # Execute web search job discovery
+        result = await web_search_service.discover_jobs_for_company(
+            company=company_info,
+            user_preferences=user_prefs,
+            max_jobs=20
         )
         
         # Convert to response model
-        if result["status"] == "success":
+        if result.get("success"):
             return JobDiscoveryResponse(
-                status=result["status"],
-                company=result["company"],
+                status="success",
+                company=result.get("company", request.company_id),
                 career_page_url=result.get("career_page_url"),
                 total_jobs=result.get("total_jobs", 0),
                 matched_jobs=result.get("matched_jobs", []),
                 execution_time=result.get("execution_time", 0.0),
-                extraction_method=result.get("extraction_method"),
-                used_browser=result.get("used_browser", False),
-                discovery_method=result.get("discovery_method")
+                extraction_method="web_search",
+                used_browser=False,
+                discovery_method="openai_web_search"
             )
         else:
             return JobDiscoveryResponse(
-                status=result["status"],
-                company=result["company"],
+                status="error",
+                company=request.company_id,
                 execution_time=result.get("execution_time", 0.0),
-                error=result.get("message", "Unknown error")
+                error=result.get("error", "Web search failed")
             )
             
     except Exception as e:
-        logger.error(f"Job discovery failed: {e}")
+        logger.error(f"Web search job discovery failed: {e}")
         return JobDiscoveryResponse(
             status="error",
             company=request.company_id,
             error=str(e)
         )
 
-@app.post("/api/multi-company-job-discovery")
-async def discover_jobs_multi_company(request: MultiCompanyJobDiscoveryRequest):
-    """
-    Job discovery endpoint for multiple companies
-    """
-    if not orchestrator:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    
-    try:
-        logger.info(f"🔍 Multi-company job discovery for {len(request.companies)} companies")
-        
-        # Validate companies format
-        for company in request.companies:
-            if "name" not in company or "website" not in company:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Each company must have 'name' and 'website' fields"
-                )
-        
-        # Execute batch discovery
-        result = await orchestrator.discover_jobs_batch({
-            "companies": request.companies,
-            "user_preferences": request.user_preferences,
-            "max_concurrent": request.max_concurrent
-        })
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Multi-company job discovery failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# LEGACY MULTI-COMPANY ENDPOINT - DISABLED FOR WEB SEARCH
+# Legacy multi-company job discovery endpoint has been removed
 
 @app.get("/api/system/status")
 async def get_system_status():
-    """Get detailed system status"""
-    if not orchestrator:
-        return {
-            "status": "error",
-            "message": "Orchestrator not initialized"
-        }
-    
+    """Get detailed system status for web search system"""
     return {
         "status": "operational",
+        "system_type": "web-search-based",
         "components": {
-            "orchestrator": "active",
-            "openai_client": "available" if orchestrator.openai_client.is_available() else "unavailable",
-            "browser_controller": "available" if orchestrator.browser_controller else "unavailable",
-            "career_agent": "active",
-            "extraction_agent": "active", 
-            "matching_agent": "active"
+            "web_search_service": "active" if web_search_service else "inactive",
+            "openai_client": "available" if web_search_service and web_search_service.is_available() else "unavailable",
+            "browser_automation": "disabled",  # No longer used
+            "legacy_orchestrator": "disabled"  # No longer used
         },
         "configuration": {
             "demo_mode": config.demo_mode,
             "openai_model": config.openai_model,
-            "browser_enabled": orchestrator.browser_controller is not None,
-            "vision_enabled": True
+            "browser_enabled": False,  # Disabled for web search
+            "web_search_enabled": True
         },
         "timestamp": datetime.utcnow().isoformat()
     }
@@ -267,9 +258,21 @@ async def github_oauth_token(request: GitHubOAuthRequest):
     Exchange GitHub OAuth code for access token
     """
     try:
+        # Validate input parameters
+        if not request.code or not request.code.strip():
+            logger.warning("GitHub OAuth called with empty authorization code")
+            raise HTTPException(status_code=400, detail="Authorization code is required")
+        
+        if not request.client_id or not request.client_id.strip():
+            logger.warning("GitHub OAuth called with empty client ID")
+            raise HTTPException(status_code=400, detail="Client ID is required")
+        
         github_client_secret = os.getenv('GITHUB_CLIENT_SECRET')
         if not github_client_secret:
+            logger.error("GitHub client secret not configured in environment")
             raise HTTPException(status_code=500, detail="GitHub client secret not configured")
+        
+        logger.info(f"Processing GitHub OAuth token exchange for client ID: {request.client_id[:8]}...")
         
         # Exchange code for access token
         async with httpx.AsyncClient() as client:
@@ -287,18 +290,25 @@ async def github_oauth_token(request: GitHubOAuthRequest):
             )
             
             if response.status_code != 200:
-                raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+                logger.error(f"GitHub OAuth API returned status {response.status_code}: {response.text}")
+                raise HTTPException(status_code=400, detail=f"Failed to exchange code for token (status: {response.status_code})")
             
             token_data = response.json()
             
             if "error" in token_data:
-                raise HTTPException(status_code=400, detail=token_data.get("error_description", "OAuth error"))
+                error_msg = token_data.get("error_description", token_data.get("error", "OAuth error"))
+                logger.error(f"GitHub OAuth error response: {error_msg}")
+                raise HTTPException(status_code=400, detail=error_msg)
             
+            logger.info("GitHub OAuth token exchange successful")
             return token_data
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"GitHub OAuth error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"GitHub OAuth unexpected error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

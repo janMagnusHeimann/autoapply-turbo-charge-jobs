@@ -126,12 +126,12 @@ export const ProfileAssets = () => {
       if (data && data.length > 0) {
         setAssets(data);
       } else {
-        // If no real data, show demo data
-        setAssets(getDemoAssets());
+        // If no real data, start with empty array
+        setAssets([]);
       }
     } catch (error) {
       console.error('Error fetching assets:', error);
-      setAssets(getDemoAssets());
+      setAssets([]);
     } finally {
       setLoading(false);
     }

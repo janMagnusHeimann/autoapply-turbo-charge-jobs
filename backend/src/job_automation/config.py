@@ -4,7 +4,21 @@ Simplified configuration for the job automation system
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 import logging
+
+try:
+    from dotenv import load_dotenv
+    # Load .env from backend directory and parent directory
+    backend_env = Path(__file__).parent.parent.parent / ".env"
+    root_env = Path(__file__).parent.parent.parent.parent / ".env"
+    
+    if backend_env.exists():
+        load_dotenv(backend_env)
+    elif root_env.exists():
+        load_dotenv(root_env)
+except ImportError:
+    pass  # dotenv not available
 
 logger = logging.getLogger(__name__)
 

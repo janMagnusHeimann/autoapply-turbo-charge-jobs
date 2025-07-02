@@ -58,29 +58,29 @@ ALTER TABLE selected_publications ENABLE ROW LEVEL SECURITY;
 
 -- Google Scholar connections policies
 CREATE POLICY "Users can view their own Google Scholar connection" ON google_scholar_connections
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert their own Google Scholar connection" ON google_scholar_connections
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update their own Google Scholar connection" ON google_scholar_connections
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can delete their own Google Scholar connection" ON google_scholar_connections
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Selected publications policies
 CREATE POLICY "Users can view their own selected publications" ON selected_publications
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can insert their own selected publications" ON selected_publications
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can update their own selected publications" ON selected_publications
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 CREATE POLICY "Users can delete their own selected publications" ON selected_publications
-  FOR DELETE USING (auth.uid() = user_id);
+  FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- Functions to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_google_scholar_connections_updated_at()

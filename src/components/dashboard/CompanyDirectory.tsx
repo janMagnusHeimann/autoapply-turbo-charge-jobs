@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { CVGeneration, CVTemplate } from "@/types/cv";
+import { UserPreferencesSetup } from "./UserPreferencesSetup";
 
 type JobSource = 'real_scraping' | 'intelligent_fallback' | 'ai_generated' | 'demo';
 
@@ -52,6 +53,8 @@ export const CompanyDirectory = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('premium');
   const [addCompanyDialogOpen, setAddCompanyDialogOpen] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
+  const [preferencesSetupOpen, setPreferencesSetupOpen] = useState(false);
+  const [selectedCompanyForPreferences, setSelectedCompanyForPreferences] = useState<Company | null>(null);
   const [newCompany, setNewCompany] = useState({
     name: '',
     description: '',
@@ -391,27 +394,20 @@ export const CompanyDirectory = () => {
       return;
     }
 
-    if (!userProfile || !userPreferences) {
+    if (!userProfile) {
       toast.error("Profile Setup Required", {
-        description: "Please complete your profile setup first by adding your personal information and preferences in Settings"
+        description: "Please complete your profile setup first by adding your personal information in Settings"
       });
       return;
     }
 
-    // Check for required fields
-    if (!userPreferences.preferred_industries || userPreferences.preferred_industries.length === 0) {
-      toast.error("Missing Industry Preferences", {
-        description: "Please add at least one preferred industry in your profile settings to start job discovery"
-      });
-      return;
-    }
+    // Show preferences setup modal first
+    setSelectedCompanyForPreferences(company);
+    setPreferencesSetupOpen(true);
+    return;
+  };
 
-    if (!userPreferences.skills || userPreferences.skills.length === 0) {
-      toast.error("Missing Skills Information", {
-        description: "Please add your skills in your profile settings to help match you with relevant jobs"
-      });
-      return;
-    }
+  const handleStartJobDiscovery = async (company: Company, finalPreferences: any) => {
 
     setDiscoveringJobs(company.id);
     setAgentSteps([]);
@@ -426,11 +422,11 @@ export const CompanyDirectory = () => {
       
       // Convert user preferences to requirements format
       const userRequirements = {
-        preferred_locations: userPreferences.preferred_locations || [],
-        min_salary: userPreferences.min_salary,
-        max_salary: userPreferences.max_salary, 
-        job_types: userPreferences.job_types || [],
-        skills: userPreferences.skills || [],
+        preferred_locations: finalPreferences.preferred_locations || [],
+        min_salary: finalPreferences.min_salary,
+        max_salary: finalPreferences.max_salary, 
+        job_types: finalPreferences.job_types || [],
+        skills: finalPreferences.skills || [],
         experience_level: userProfile.current_title?.toLowerCase().includes('senior') ? 'senior' : 
                          userProfile.current_title?.toLowerCase().includes('lead') ? 'senior' : 'mid-level'
       };
@@ -443,7 +439,7 @@ export const CompanyDirectory = () => {
         job_types: userRequirements.job_types || ['full-time'],
         salary_min: userRequirements.min_salary,
         salary_max: userRequirements.max_salary,
-        preferred_industries: userPreferences.preferred_industries || []
+        preferred_industries: finalPreferences.preferred_industries || []
       };
 
       // Execute OpenAI-powered job discovery with progress callback
@@ -499,11 +495,18 @@ export const CompanyDirectory = () => {
           });
         }, 1000);
       } else {
-        toast.warning("No suitable jobs found", {
-          description: result.career_page_url ? 
-            `Career page found (${result.career_page_url}) but no matching positions available` :
-            `Could not find career page for ${company.name}`
-        });
+        // Check if this is a search failure vs no matching jobs
+        if (result.total_jobs === 0) {
+          toast.error("Job search failed", {
+            description: result.career_page_url ? 
+              `Unable to find job listings on ${company.name}'s career page. The site may use dynamic loading or require authentication.` :
+              `Could not find or access ${company.name}'s career page. Please verify the company website.`
+          });
+        } else {
+          toast.warning("No suitable jobs found", {
+            description: `Found ${result.total_jobs} jobs at ${company.name}, but none match your preferences and skills.`
+          });
+        }
       }
     } catch (error) {
       console.error('Multi-agent workflow error:', error);
@@ -1162,6 +1165,19 @@ export const CompanyDirectory = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* User Preferences Setup Modal */}
+      <UserPreferencesSetup
+        open={preferencesSetupOpen}
+        onOpenChange={setPreferencesSetupOpen}
+        companyName={selectedCompanyForPreferences?.name || ""}
+        onComplete={(preferences) => {
+          if (selectedCompanyForPreferences) {
+            handleStartJobDiscovery(selectedCompanyForPreferences, preferences);
+          }
+          setPreferencesSetupOpen(false);
+        }}
+      />
     </div>
   );
 };

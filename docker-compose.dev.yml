@@ -25,11 +25,11 @@ services:
       - app-network
     command: npm run dev -- --host 0.0.0.0 --port 8087
 
-  # Backend FastAPI Development Server
+  # Backend FastAPI Development Server (Web Search - No Browser Automation)
   backend-dev:
     build:
       context: ./backend
-      dockerfile: Dockerfile.playwright
+      dockerfile: Dockerfile.dev
     ports:
       - "8000:8000"
     environment:
