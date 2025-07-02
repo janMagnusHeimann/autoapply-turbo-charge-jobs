@@ -43,10 +43,10 @@ export const JobPreferences = () => {
       setSkills(userPreferences.skills || []);
       setLoading(false);
     } else if (user) {
-      // Set some defaults if no preferences exist yet
-      setJobTitles(['Software Engineer', 'Full Stack Developer']);
-      setLocations(['Remote']);
-      setSkills(['React', 'TypeScript', 'Node.js']);
+      // Initialize with empty arrays if no preferences exist yet
+      setJobTitles([]);
+      setLocations([]);
+      setSkills([]);
       setLoading(false);
     }
   }, [userPreferences, user]);
@@ -276,26 +276,172 @@ export const JobPreferences = () => {
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-300">Salary Range</Label>
-                <span className="text-white font-medium">
-                  ${salaryRange[0].toLocaleString()} - ${salaryRange[1].toLocaleString()}
-                </span>
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                  <span className="text-green-400 font-bold text-lg">
+                    ${salaryRange[0].toLocaleString()}
+                  </span>
+                  <span className="text-gray-400">to</span>
+                  <span className="text-green-400 font-bold text-lg">
+                    ${salaryRange[1].toLocaleString()}
+                  </span>
+                </div>
               </div>
-              <div className="px-3">
-                <Slider
-                  value={salaryRange}
-                  onValueChange={setSalaryRange}
-                  max={500000}
-                  min={30000}
-                  step={5000}
-                  className="w-full"
-                />
+              
+              <div className="px-4 py-6">
+                <div className="relative">
+                  <div className="mb-4 h-2 bg-gray-700 rounded-full relative overflow-hidden">
+                    {/* Track */}
+                    <div 
+                      className="absolute h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full"
+                      style={{
+                        left: `${((salaryRange[0] - 30000) / (500000 - 30000)) * 100}%`,
+                        width: `${((salaryRange[1] - salaryRange[0]) / (500000 - 30000)) * 100}%`
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Custom Range Input */}
+                  <div className="relative h-8 flex items-center">
+                    <input
+                      type="range"
+                      min={30000}
+                      max={500000}
+                      step={5000}
+                      value={salaryRange[0]}
+                      onChange={(e) => {
+                        const newMin = parseInt(e.target.value);
+                        setSalaryRange([Math.min(newMin, salaryRange[1] - 5000), salaryRange[1]]);
+                      }}
+                      className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer slider-thumb slider-min"
+                      style={{ zIndex: 2 }}
+                    />
+                    <input
+                      type="range"
+                      min={30000}
+                      max={500000}
+                      step={5000}
+                      value={salaryRange[1]}
+                      onChange={(e) => {
+                        const newMax = parseInt(e.target.value);
+                        setSalaryRange([salaryRange[0], Math.max(newMax, salaryRange[0] + 5000)]);
+                      }}
+                      className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer slider-thumb slider-max"
+                      style={{ zIndex: 3 }}
+                    />
+                  </div>
+                  
+                  <style jsx>{`
+                    .slider-thumb {
+                      pointer-events: all;
+                      background: transparent;
+                      height: 20px;
+                    }
+                    
+                    .slider-thumb::-webkit-slider-track {
+                      background: transparent;
+                      height: 20px;
+                      border: none;
+                    }
+                    
+                    .slider-thumb::-webkit-slider-thumb {
+                      appearance: none;
+                      width: 24px;
+                      height: 24px;
+                      border-radius: 50%;
+                      background: white;
+                      border: 3px solid #22c55e;
+                      cursor: pointer;
+                      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                      transition: all 0.2s ease;
+                      margin-top: -9px;
+                    }
+                    
+                    .slider-thumb::-webkit-slider-thumb:hover {
+                      transform: scale(1.15);
+                      border-color: #10b981;
+                      box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+                    }
+                    
+                    .slider-thumb::-webkit-slider-thumb:active {
+                      transform: scale(1.1);
+                      border-color: #059669;
+                      box-shadow: 0 6px 16px rgba(34, 197, 94, 0.6);
+                    }
+                    
+                    .slider-max::-webkit-slider-thumb {
+                      border-color: #059669;
+                      background: #f0fdf4;
+                    }
+                    
+                    .slider-min::-webkit-slider-thumb {
+                      border-color: #16a34a;
+                      background: white;
+                    }
+                    
+                    .slider-thumb::-moz-range-track {
+                      background: transparent;
+                      height: 2px;
+                      border: none;
+                    }
+                    
+                    .slider-thumb::-moz-range-thumb {
+                      width: 24px;
+                      height: 24px;
+                      border-radius: 50%;
+                      background: white;
+                      border: 3px solid #22c55e;
+                      cursor: pointer;
+                      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                      transition: all 0.2s ease;
+                    }
+                    
+                    .slider-thumb::-moz-range-thumb:hover {
+                      transform: scale(1.15);
+                      border-color: #10b981;
+                      box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+                    }
+                  `}</style>
+                </div>
               </div>
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>$30k</span>
-                <span>$500k</span>
+              
+              <div className="flex justify-between items-center text-sm">
+                <div className="text-center">
+                  <div className="text-gray-400">Minimum</div>
+                  <div className="text-white font-medium">$30k</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-400">Maximum</div>
+                  <div className="text-white font-medium">$500k</div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <button
+                  onClick={() => setSalaryRange([50000, 100000])}
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+                >
+                  Entry Level
+                  <br />
+                  <span className="text-green-400">$50k - $100k</span>
+                </button>
+                <button
+                  onClick={() => setSalaryRange([80000, 150000])}
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+                >
+                  Mid Level
+                  <br />
+                  <span className="text-green-400">$80k - $150k</span>
+                </button>
+                <button
+                  onClick={() => setSalaryRange([120000, 250000])}
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+                >
+                  Senior Level
+                  <br />
+                  <span className="text-green-400">$120k - $250k</span>
+                </button>
               </div>
             </div>
           </CardContent>

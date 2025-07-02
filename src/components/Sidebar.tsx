@@ -1,10 +1,7 @@
-
 import { 
   Home, 
   User, 
   Building2, 
-  Target, 
-  FileText, 
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -12,7 +9,11 @@ import {
   LogOut,
   Zap,
   Globe,
-  Search
+  ChevronDown,
+  ChevronUp,
+  Briefcase,
+  UserCircle,
+  Target
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
@@ -27,21 +28,43 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-const navigationItems = [
-  { id: 'dashboard' as DashboardView, label: 'Dashboard', icon: Home },
-  { id: 'profile' as DashboardView, label: 'My Profile & CV Assets', icon: User },
-  { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
-  { id: 'sources' as DashboardView, label: 'Job Sources', icon: Globe },
-  { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target },
-  { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
-  { id: 'openai-search' as DashboardView, label: 'OpenAI Job Search', icon: Search },
-  { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock },
-  { id: 'history' as DashboardView, label: 'Application History', icon: FileText },
-  { id: 'settings' as DashboardView, label: 'Settings', icon: SettingsIcon },
+interface NavigationSection {
+  id: string;
+  label: string;
+  icon: any;
+  items: {
+    id: DashboardView;
+    label: string;
+    icon: any;
+  }[];
+}
+
+const navigationSections: NavigationSection[] = [
+  {
+    id: 'profile',
+    label: 'Profile',
+    icon: UserCircle,
+    items: [
+      { id: 'profile' as DashboardView, label: 'My Profile & CV Assets', icon: User },
+      { id: 'preferences' as DashboardView, label: 'Job Preferences', icon: Target }
+    ]
+  },
+  {
+    id: 'jobs',
+    label: 'Job Discovery',
+    icon: Briefcase,
+    items: [
+      { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
+      { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
+      { id: 'sources' as DashboardView, label: 'Job Sources', icon: Globe },
+      { id: 'queue' as DashboardView, label: 'Review Queue', icon: Clock }
+    ]
+  }
 ];
 
 export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse }: SidebarProps) => {
   const [pendingCount, setPendingCount] = useState(0);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['profile', 'jobs']);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
@@ -82,6 +105,21 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
     };
   }, []);
 
+  const toggleSection = (sectionId: string) => {
+    if (collapsed) return; // Don't toggle when collapsed
+    
+    setExpandedSections(prev => 
+      prev.includes(sectionId) 
+        ? prev.filter(id => id !== sectionId)
+        : [...prev, sectionId]
+    );
+  };
+
+  const isItemActive = (itemId: DashboardView) => currentView === itemId;
+
+  const isSectionActive = (section: NavigationSection) => 
+    section.items.some(item => isItemActive(item.id));
+
   return (
     <div className={`fixed left-0 top-0 h-full bg-gray-900 border-r border-gray-800 transition-all duration-300 ${
       collapsed ? 'w-16' : 'w-64'
@@ -107,36 +145,130 @@ export const Sidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-2">
-        {navigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-          const showBadge = item.id === 'queue' && pendingCount > 0;
-          
+      <nav className="p-4 space-y-1">
+        {/* Dashboard - always at top */}
+        <button
+          onClick={() => onViewChange('dashboard')}
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+            isItemActive('dashboard')
+              ? 'bg-gray-700 text-white border-l-2 border-gray-400' 
+              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          }`}
+          title={collapsed ? 'Dashboard' : undefined}
+        >
+          <Home size={20} className="flex-shrink-0" />
+          {!collapsed && <span className="font-medium">Dashboard</span>}
+        </button>
+
+        {/* Dropdown Sections */}
+        {navigationSections.map((section) => {
+          const SectionIcon = section.icon;
+          const isExpanded = expandedSections.includes(section.id);
+          const hasActiveItem = isSectionActive(section);
+
           return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 relative ${
-                isActive 
-                  ? 'bg-gray-700 text-white border-l-2 border-gray-400' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon size={20} className="flex-shrink-0" />
-              {!collapsed && (
-                <span className="font-medium">{item.label}</span>
+            <div key={section.id} className="space-y-1">
+              {/* Section Header */}
+              <button
+                onClick={() => toggleSection(section.id)}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+                  hasActiveItem
+                    ? 'bg-gray-700/50 text-white' 
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`}
+                title={collapsed ? section.label : undefined}
+              >
+                <SectionIcon size={20} className="flex-shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="font-medium flex-1 text-left">{section.label}</span>
+                    {isExpanded ? (
+                      <ChevronUp size={16} className="text-gray-500" />
+                    ) : (
+                      <ChevronDown size={16} className="text-gray-500" />
+                    )}
+                  </>
+                )}
+              </button>
+
+              {/* Section Items */}
+              {!collapsed && isExpanded && (
+                <div className="ml-4 space-y-1">
+                  {section.items.map((item) => {
+                    const ItemIcon = item.icon;
+                    const showBadge = item.id === 'queue' && pendingCount > 0;
+                    
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => onViewChange(item.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 relative ${
+                          isItemActive(item.id)
+                            ? 'bg-gray-700 text-white border-l-2 border-gray-400' 
+                            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        }`}
+                      >
+                        <ItemIcon size={18} className="flex-shrink-0" />
+                        <span className="font-medium text-sm">{item.label}</span>
+                        {showBadge && (
+                          <span className="absolute right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                            {pendingCount > 99 ? '99+' : pendingCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-              {showBadge && (
-                <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-2'} bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold`}>
-                  {pendingCount > 99 ? '99+' : pendingCount}
-                </span>
+
+              {/* Collapsed state - show active items */}
+              {collapsed && hasActiveItem && (
+                <div className="space-y-1">
+                  {section.items
+                    .filter(item => isItemActive(item.id))
+                    .map((item) => {
+                      const ItemIcon = item.icon;
+                      const showBadge = item.id === 'queue' && pendingCount > 0;
+                      
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => onViewChange(item.id)}
+                          className="w-full flex items-center justify-center p-3 rounded-lg bg-gray-700 text-white relative"
+                          title={item.label}
+                        >
+                          <ItemIcon size={18} className="flex-shrink-0" />
+                          {showBadge && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                              {pendingCount > 99 ? '99+' : pendingCount}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </nav>
+
+      {/* Bottom Actions */}
+      <div className="absolute bottom-16 left-4 right-4">
+        {/* Settings */}
+        <button
+          onClick={() => onViewChange('settings')}
+          className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg transition-all duration-200 mb-2 ${
+            isItemActive('settings')
+              ? 'bg-gray-700 text-white' 
+              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          }`}
+          title={collapsed ? 'Settings' : undefined}
+        >
+          <SettingsIcon size={20} className="flex-shrink-0" />
+          {!collapsed && <span className="font-medium">Settings</span>}
+        </button>
+      </div>
 
       {/* Sign Out Button */}
       <div className="absolute bottom-4 left-4 right-4">

@@ -442,7 +442,7 @@ export const CompanyDirectory = () => {
         preferred_industries: finalPreferences.preferred_industries || []
       };
 
-      // Execute OpenAI-powered job discovery with progress callback
+      // Execute AI-powered job discovery with progress callback
       const result = await unifiedJobDiscoveryService.discoverJobsForCompany(
         {
           id: company.id,
@@ -470,7 +470,7 @@ export const CompanyDirectory = () => {
           location: job.location,
           url: job.application_url,
           salary_range: job.salary_range,
-          confidence_score: job.match_score || 0.7, // Use match_score from OpenAI
+          confidence_score: job.match_score || 0.7, // Use match_score from AI analysis
           source: 'real_scraping' as const
         }));
 
@@ -480,8 +480,8 @@ export const CompanyDirectory = () => {
         
         const relevantJobs = jobOpportunities.filter(job => job.confidence_score > 0.5);
         
-        toast.success(`🎉 OpenAI job discovery complete!`, {
-          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Powered by OpenAI web search`
+        toast.success(`🎉 AI job discovery complete!`, {
+          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Powered by AI web search`
         });
 
         // Show workflow summary
