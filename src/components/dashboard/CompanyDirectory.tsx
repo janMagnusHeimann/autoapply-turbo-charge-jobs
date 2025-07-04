@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -962,9 +961,9 @@ export const CompanyDirectory = () => {
 
       {/* Job Selection Dialog */}
       <Dialog open={jobDialogOpen} onOpenChange={setJobDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-gray-800">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white border-gray-300 text-gray-900">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
               <Briefcase className="w-5 h-5" />
               Jobs Found by Multi-Agent Workflow at {selectedCompany?.name}
             </DialogTitle>
@@ -973,21 +972,21 @@ export const CompanyDirectory = () => {
           <div className="space-y-4">
             {/* Agent Steps Display */}
             {agentSteps.length > 0 && (
-              <Card className="bg-gray-800 border-gray-700">
+              <Card className="bg-blue-50 border-blue-200">
                 <CardHeader>
-                  <CardTitle className="text-gray-300 text-sm">🤖 Multi-Agent Workflow Process</CardTitle>
+                  <CardTitle className="text-blue-900 text-sm">🤖 Multi-Agent Workflow Process</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     {agentSteps.map((step, index) => (
-                      <div key={index} className="text-sm text-gray-400 flex items-center gap-2">
-                        <span className="text-gray-500">{index + 1}.</span>
+                      <div key={index} className="text-sm text-gray-700 flex items-center gap-2">
+                        <span className="text-blue-600 font-medium">{index + 1}.</span>
                         {step}
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800 rounded-lg">
-                    <p className="text-xs text-blue-300">
+                  <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+                    <p className="text-xs text-blue-800">
                       ℹ️ <strong>Note:</strong> Our multi-agent workflow uses specialized AI agents: one to find/verify career pages, another to scrape jobs, and a third to match them with your requirements. 
                       This systematic approach ensures we find the most relevant opportunities that match your profile.
                     </p>
@@ -998,33 +997,33 @@ export const CompanyDirectory = () => {
 
             {/* CV Template Selector */}
             {selectedCompany && jobOpportunities.get(selectedCompany.id)?.length > 0 && (
-              <Card className="bg-gray-800 border-gray-700">
+              <Card className="bg-gray-50 border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-gray-300 text-sm">📄 CV Template Settings</CardTitle>
+                  <CardTitle className="text-gray-900 text-sm">📄 CV Template Settings</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     <div>
-                      <Label htmlFor="template-select" className="text-sm text-gray-300 mb-2 block">
+                      <Label htmlFor="template-select" className="text-sm text-gray-700 mb-2 block font-medium">
                         Choose CV Template
                       </Label>
                       <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                        <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                        <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                           <SelectValue placeholder="Select template" />
                         </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-700">
+                        <SelectContent className="bg-white border-gray-300">
                           {availableTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id} className="text-white hover:bg-gray-700">
+                            <SelectItem key={template.id} value={template.id} className="text-gray-900 hover:bg-gray-100">
                               <div className="flex flex-col">
                                 <span className="font-medium">{template.name}</span>
-                                <span className="text-xs text-gray-400">{template.description}</span>
+                                <span className="text-xs text-gray-600">{template.description}</span>
                               </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-600">
                       The CV will be automatically optimized based on job requirements using AI analysis.
                     </div>
                   </div>
@@ -1034,13 +1033,13 @@ export const CompanyDirectory = () => {
 
             {/* Job Opportunities */}
             {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => (
-              <Card key={job.id} className="bg-gray-800 border-gray-700">
+              <Card key={job.id} className="bg-white border-gray-200 shadow-sm">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-white text-lg">{job.title}</CardTitle>
+                      <CardTitle className="text-gray-900 text-lg">{job.title}</CardTitle>
                       <div className="flex items-center gap-4 mt-2">
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
                           {Math.round(job.confidence_score * 100)}% match
                         </Badge>
                         <Badge 
@@ -1049,7 +1048,7 @@ export const CompanyDirectory = () => {
                         >
                           🤖 Multi-Agent Discovery
                         </Badge>
-                        <span className="text-sm text-gray-400">📍 {job.location}</span>
+                        <span className="text-sm text-gray-600">📍 {job.location}</span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -1057,7 +1056,7 @@ export const CompanyDirectory = () => {
                         size="sm"
                         variant="outline"
                         onClick={() => window.open(job.url, '_blank')}
-                        className="!text-white !border-gray-600 !bg-transparent hover:!bg-gray-700 hover:!text-white"
+                        className="text-gray-700 border-gray-300 bg-white hover:bg-gray-50"
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
                         View Job
@@ -1066,7 +1065,7 @@ export const CompanyDirectory = () => {
                         size="sm"
                         onClick={() => handleGenerateCV(job)}
                         disabled={generatingCV === job.id}
-                        className="bg-blue-600 hover:bg-blue-700 border border-blue-600"
+                        className="bg-blue-600 hover:bg-blue-700 border border-blue-600 text-white"
                       >
                         {generatingCV === job.id ? (
                           <>
@@ -1086,7 +1085,7 @@ export const CompanyDirectory = () => {
                             description: `Agent successfully navigated to: ${job.url}`
                           });
                         }}
-                        className="bg-green-600 hover:bg-green-700 border border-green-600"
+                        className="bg-green-600 hover:bg-green-700 border border-green-600 text-white"
                       >
                         ✅ Verify
                       </Button>
@@ -1095,18 +1094,18 @@ export const CompanyDirectory = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-300 mb-2">Job Description</h4>
-                    <p className="text-sm text-gray-400 leading-relaxed">{job.description}</p>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Job Description</h4>
+                    <p className="text-sm text-gray-700 leading-relaxed">{job.description}</p>
                   </div>
                   
                   {job.requirements && job.requirements.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-300 mb-2">Requirements</h4>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Requirements</h4>
                       <div className="space-y-1">
                         {job.requirements.map((req, index) => (
                           <div key={index} className="flex items-start gap-2">
-                            <span className="text-gray-500 text-xs mt-1">•</span>
-                            <span className="text-sm text-gray-400">{req}</span>
+                            <span className="text-blue-600 text-xs mt-1">•</span>
+                            <span className="text-sm text-gray-700">{req}</span>
                           </div>
                         ))}
                       </div>
@@ -1115,14 +1114,14 @@ export const CompanyDirectory = () => {
                   
                   {job.salary_range && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-300 mb-1">Salary Range</h4>
-                      <p className="text-sm text-gray-400">{job.salary_range}</p>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">Salary Range</h4>
+                      <p className="text-sm text-gray-700">{job.salary_range}</p>
                     </div>
                   )}
                   
-                  <div className="pt-2 border-t border-gray-700">
+                  <div className="pt-2 border-t border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-600 font-medium">
                         🤖 Found by Multi-Agent Workflow
                       </span>
                       <Badge 
@@ -1134,20 +1133,20 @@ export const CompanyDirectory = () => {
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Job URL:</span>
+                        <span className="text-xs text-gray-600 font-medium">Job URL:</span>
                         <a
                           href={job.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 break-all"
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 break-all underline"
                         >
                           {job.url}
                           <ExternalLink className="w-3 h-3 flex-shrink-0" />
                         </a>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Career Page:</span>
-                        <span className="text-xs text-blue-400">Verified by AI Agent</span>
+                        <span className="text-xs text-gray-600 font-medium">Career Page:</span>
+                        <span className="text-xs text-blue-600 font-medium">Verified by AI Agent</span>
                       </div>
                     </div>
                   </div>
@@ -1157,9 +1156,9 @@ export const CompanyDirectory = () => {
             
             {selectedCompany && (!jobOpportunities.get(selectedCompany.id) || jobOpportunities.get(selectedCompany.id)?.length === 0) && (
               <div className="text-center py-8">
-                <Briefcase className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-400 mb-2">No jobs found</h3>
-                <p className="text-gray-500">The autonomous agent couldn't find matching positions</p>
+                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-700 mb-2">No jobs found</h3>
+                <p className="text-gray-600">The autonomous agent couldn't find matching positions</p>
               </div>
             )}
           </div>

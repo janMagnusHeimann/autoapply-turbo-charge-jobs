@@ -13,7 +13,11 @@ import {
   FileText,
   Sparkles,
   GraduationCap,
-  Award
+  Award,
+  ChevronDown,
+  ChevronUp,
+  Edit3,
+  Save
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { UserProfile, UserPreferences, ComprehensiveUserProfile, CVAsset } from "@/services/userService";
@@ -77,6 +82,12 @@ export const UserPreferencesSetup = ({
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [customSkill, setCustomSkill] = useState("");
   
+  // Company-specific selection states
+  const [companyRepoSelections, setCompanyRepoSelections] = useState<{[key: string]: {selected: boolean, description: string}}>({});
+  const [companyPubSelections, setCompanyPubSelections] = useState<{[key: string]: {selected: boolean, description: string}}>({});
+  const [expandedRepos, setExpandedRepos] = useState(false);
+  const [expandedPubs, setExpandedPubs] = useState(false);
+  
   // Step management
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
@@ -90,6 +101,9 @@ export const UserPreferencesSetup = ({
       
       // Load comprehensive profile data
       loadComprehensiveProfile();
+      
+      // Load company-specific selections
+      loadCompanySpecificSelections();
       
       // Auto-analyze CV and load repos (keep for legacy compatibility)
       handleAnalyzeCV();
@@ -107,6 +121,41 @@ export const UserPreferencesSetup = ({
       
       if (comprehensive) {
         console.log('Loaded comprehensive profile:', comprehensive);
+        
+        // Initialize company-specific selections based on existing data (only if not already loaded)
+        setCompanyRepoSelections(prev => {
+          // If we already have company-specific selections, don't override them
+          if (Object.keys(prev).length > 0) {
+            return prev;
+          }
+          
+          // Otherwise, initialize with defaults
+          const repoSelections: {[key: string]: {selected: boolean, description: string}} = {};
+          comprehensive.repositories.forEach(repo => {
+            repoSelections[repo.id] = {
+              selected: true, // Default to selected since they're in the comprehensive profile
+              description: repo.description || ''
+            };
+          });
+          return repoSelections;
+        });
+        
+        setCompanyPubSelections(prev => {
+          // If we already have company-specific selections, don't override them
+          if (Object.keys(prev).length > 0) {
+            return prev;
+          }
+          
+          // Otherwise, initialize with defaults
+          const pubSelections: {[key: string]: {selected: boolean, description: string}} = {};
+          comprehensive.publications.forEach(pub => {
+            pubSelections[pub.id] = {
+              selected: true, // Default to selected since they're in the comprehensive profile
+              description: pub.description || ''
+            };
+          });
+          return pubSelections;
+        });
       }
     } catch (error) {
       console.error('Error loading comprehensive profile:', error);
@@ -234,16 +283,86 @@ export const UserPreferencesSetup = ({
     }
   };
 
-  const handleComplete = () => {
-    const finalPreferences: UserPreferences = {
-      ...userPreferences!,
-      ...preferences,
-      skills: selectedSkills
+  const handleComplete = async () => {
+    try {
+      const finalPreferences: UserPreferences = {
+        ...userPreferences!,
+        ...preferences,
+        skills: selectedSkills
+      };
+      
+      // Save company-specific selections to localStorage/database
+      await saveCompanySpecificSelections();
+      
+      onComplete(finalPreferences);
+      onOpenChange(false);
+      toast.success('Preferences updated successfully!');
+    } catch (error) {
+      console.error('Error saving company-specific preferences:', error);
+      toast.error('Failed to save some preferences');
+    }
+  };
+
+  const saveCompanySpecificSelections = async () => {
+    if (!user) return;
+    
+    const companySpecificData = {
+      companyName,
+      repositorySelections: companyRepoSelections,
+      publicationSelections: companyPubSelections,
+      updatedAt: new Date().toISOString()
     };
     
-    onComplete(finalPreferences);
-    onOpenChange(false);
-    toast.success('Preferences updated successfully!');
+    try {
+      // Save to localStorage (works in both dev and prod)
+      const existingData = localStorage.getItem('company_specific_selections') || '{}';
+      const allCompanyData = JSON.parse(existingData);
+      allCompanyData[companyName] = companySpecificData;
+      localStorage.setItem('company_specific_selections', JSON.stringify(allCompanyData));
+      
+      console.log(`💾 Saved company-specific selections for ${companyName}:`, {
+        repositories: Object.keys(companyRepoSelections).filter(id => companyRepoSelections[id]?.selected).length,
+        publications: Object.keys(companyPubSelections).filter(id => companyPubSelections[id]?.selected).length
+      });
+      
+      // TODO: In production, also save to Supabase user_preferences table
+      // This could be stored in a JSONB column like company_specific_selections
+      
+    } catch (error) {
+      console.error('Error saving company-specific selections:', error);
+      throw error;
+    }
+  };
+
+  const loadCompanySpecificSelections = async () => {
+    if (!user) return;
+    
+    try {
+      const existingData = localStorage.getItem('company_specific_selections') || '{}';
+      const allCompanyData = JSON.parse(existingData);
+      const companyData = allCompanyData[companyName];
+      
+      if (companyData) {
+        console.log(`📥 Loading company-specific selections for ${companyName}:`, companyData);
+        
+        // Restore repository selections
+        if (companyData.repositorySelections) {
+          setCompanyRepoSelections(companyData.repositorySelections);
+        }
+        
+        // Restore publication selections
+        if (companyData.publicationSelections) {
+          setCompanyPubSelections(companyData.publicationSelections);
+        }
+        
+        console.log(`✅ Loaded company-specific selections for ${companyName}`);
+      } else {
+        console.log(`📋 No existing company-specific selections found for ${companyName}`);
+      }
+      
+    } catch (error) {
+      console.error('Error loading company-specific selections:', error);
+    }
   };
 
   const stepTitles = [
@@ -395,41 +514,127 @@ export const UserPreferencesSetup = ({
             {/* GitHub Repositories */}
             <Card className="bg-gray-800/50 border-gray-700">
               <CardHeader className="pb-3">
-                <CardTitle className="text-white flex items-center gap-2">
-                  <GitBranch className="w-5 h-5" />
-                  GitHub Repositories
-                  {loadingComprehensiveProfile ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : comprehensiveProfile?.repositories.length ? (
-                    <Check className="w-4 h-4 text-green-500" />
-                  ) : null}
+                <CardTitle className="text-white flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="w-5 h-5" />
+                    GitHub Repositories for {companyName}
+                    {loadingComprehensiveProfile ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : comprehensiveProfile?.repositories.length ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : null}
+                  </div>
+                  {comprehensiveProfile?.repositories && comprehensiveProfile.repositories.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedRepos(!expandedRepos)}
+                      className="text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+                    >
+                      <Edit3 className="w-4 h-4 mr-1" />
+                      Customize
+                      {expandedRepos ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+                    </Button>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {comprehensiveProfile?.repositories && comprehensiveProfile.repositories.length > 0 ? (
-                  <div className="space-y-2">
-                    {comprehensiveProfile.repositories.slice(0, 3).map(repo => (
-                      <div key={repo.id} className="p-2 bg-gray-900/50 rounded border border-gray-700">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-white text-sm font-medium">{repo.title}</h4>
-                            {repo.metadata?.language && (
-                              <Badge variant="outline" className="text-xs mr-2 mb-1 text-white border-gray-600">
-                                {repo.metadata.language}
-                              </Badge>
-                            )}
-                            <p className="text-gray-400 text-xs">{repo.description}</p>
+                  <div className="space-y-4">
+                    {!expandedRepos ? (
+                      // Summary view
+                      <div className="space-y-2">
+                        {comprehensiveProfile.repositories
+                          .filter(repo => companyRepoSelections[repo.id]?.selected !== false)
+                          .slice(0, 3)
+                          .map(repo => (
+                          <div key={repo.id} className="p-2 bg-gray-900/50 rounded border border-gray-700">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="text-white text-sm font-medium">{repo.title}</h4>
+                                {repo.metadata?.language && (
+                                  <Badge variant="outline" className="text-xs mr-2 mb-1 text-white border-gray-600">
+                                    {repo.metadata.language}
+                                  </Badge>
+                                )}
+                                <p className="text-gray-400 text-xs">
+                                  {companyRepoSelections[repo.id]?.description || repo.description}
+                                </p>
+                              </div>
+                              {repo.metadata?.stargazers_count && (
+                                <div className="text-yellow-400 text-xs">★ {repo.metadata.stargazers_count}</div>
+                              )}
+                            </div>
                           </div>
-                          {repo.metadata?.stargazers_count && (
-                            <div className="text-yellow-400 text-xs">★ {repo.metadata.stargazers_count}</div>
-                          )}
-                        </div>
+                        ))}
+                        {comprehensiveProfile.repositories.filter(repo => companyRepoSelections[repo.id]?.selected !== false).length > 3 && (
+                          <p className="text-gray-400 text-xs text-center">
+                            +{comprehensiveProfile.repositories.filter(repo => companyRepoSelections[repo.id]?.selected !== false).length - 3} more repositories selected
+                          </p>
+                        )}
                       </div>
-                    ))}
-                    {comprehensiveProfile.repositories.length > 3 && (
-                      <p className="text-gray-400 text-xs text-center">
-                        +{comprehensiveProfile.repositories.length - 3} more repositories
-                      </p>
+                    ) : (
+                      // Detailed editing view
+                      <div className="space-y-4">
+                        <p className="text-gray-400 text-sm">
+                          Select which repositories to highlight for {companyName} and customize their descriptions:
+                        </p>
+                        {comprehensiveProfile.repositories.map(repo => (
+                          <div key={repo.id} className="p-3 bg-gray-900/50 rounded border border-gray-700">
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <Checkbox
+                                  checked={companyRepoSelections[repo.id]?.selected !== false}
+                                  onCheckedChange={(checked) => {
+                                    setCompanyRepoSelections(prev => ({
+                                      ...prev,
+                                      [repo.id]: {
+                                        selected: checked as boolean,
+                                        description: prev[repo.id]?.description || repo.description || ''
+                                      }
+                                    }));
+                                  }}
+                                  className="mt-1 border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <h4 className="text-white text-sm font-medium">{repo.title}</h4>
+                                    {repo.metadata?.language && (
+                                      <Badge variant="outline" className="text-xs text-white border-gray-600">
+                                        {repo.metadata.language}
+                                      </Badge>
+                                    )}
+                                    {repo.metadata?.stargazers_count && (
+                                      <div className="text-yellow-400 text-xs">★ {repo.metadata.stargazers_count}</div>
+                                    )}
+                                  </div>
+                                  {companyRepoSelections[repo.id]?.selected !== false && (
+                                    <div className="space-y-2">
+                                      <Label className="text-gray-300 text-xs">
+                                        Description for {companyName} application:
+                                      </Label>
+                                      <Textarea
+                                        value={companyRepoSelections[repo.id]?.description || ''}
+                                        onChange={(e) => {
+                                          setCompanyRepoSelections(prev => ({
+                                            ...prev,
+                                            [repo.id]: {
+                                              selected: prev[repo.id]?.selected !== false,
+                                              description: e.target.value
+                                            }
+                                          }));
+                                        }}
+                                        className="text-xs bg-gray-800 border-gray-700 text-white min-h-[60px]"
+                                        placeholder={`Explain how this repository relates to ${companyName} or demonstrates relevant skills...`}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -444,31 +649,122 @@ export const UserPreferencesSetup = ({
             {comprehensiveProfile?.publications && comprehensiveProfile.publications.length > 0 && (
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Publications
-                    <Check className="w-4 h-4 text-green-500" />
+                  <CardTitle className="text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Publications for {companyName}
+                      <Check className="w-4 h-4 text-green-500" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedPubs(!expandedPubs)}
+                      className="text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+                    >
+                      <Edit3 className="w-4 h-4 mr-1" />
+                      Customize
+                      {expandedPubs ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+                    </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {comprehensiveProfile.publications.slice(0, 2).map(pub => (
-                      <div key={pub.id} className="p-2 bg-gray-900/50 rounded border border-gray-700">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-white text-sm font-medium">{pub.title}</h4>
-                            <p className="text-gray-400 text-xs">{pub.description}</p>
+                  <div className="space-y-4">
+                    {!expandedPubs ? (
+                      // Summary view
+                      <div className="space-y-2">
+                        {comprehensiveProfile.publications
+                          .filter(pub => companyPubSelections[pub.id]?.selected !== false)
+                          .slice(0, 2)
+                          .map(pub => (
+                          <div key={pub.id} className="p-2 bg-gray-900/50 rounded border border-gray-700">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="text-white text-sm font-medium">{pub.title}</h4>
+                                <p className="text-gray-400 text-xs">
+                                  {companyPubSelections[pub.id]?.description || pub.description}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
+                                Publication
+                              </Badge>
+                            </div>
                           </div>
-                          <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
-                            Publication
-                          </Badge>
-                        </div>
+                        ))}
+                        {comprehensiveProfile.publications.filter(pub => companyPubSelections[pub.id]?.selected !== false).length > 2 && (
+                          <p className="text-gray-400 text-xs text-center">
+                            +{comprehensiveProfile.publications.filter(pub => companyPubSelections[pub.id]?.selected !== false).length - 2} more publications selected
+                          </p>
+                        )}
                       </div>
-                    ))}
-                    {comprehensiveProfile.publications.length > 2 && (
-                      <p className="text-gray-400 text-xs text-center">
-                        +{comprehensiveProfile.publications.length - 2} more publications
-                      </p>
+                    ) : (
+                      // Detailed editing view
+                      <div className="space-y-4">
+                        <p className="text-gray-400 text-sm">
+                          Select which publications to highlight for {companyName} and customize their descriptions:
+                        </p>
+                        {comprehensiveProfile.publications.map(pub => (
+                          <div key={pub.id} className="p-3 bg-gray-900/50 rounded border border-gray-700">
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <Checkbox
+                                  checked={companyPubSelections[pub.id]?.selected !== false}
+                                  onCheckedChange={(checked) => {
+                                    setCompanyPubSelections(prev => ({
+                                      ...prev,
+                                      [pub.id]: {
+                                        selected: checked as boolean,
+                                        description: prev[pub.id]?.description || pub.description || ''
+                                      }
+                                    }));
+                                  }}
+                                  className="mt-1 border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <h4 className="text-white text-sm font-medium">{pub.title}</h4>
+                                      {pub.metadata?.authors && (
+                                        <p className="text-gray-400 text-xs">
+                                          Authors: {Array.isArray(pub.metadata.authors) ? pub.metadata.authors.join(', ') : pub.metadata.authors}
+                                        </p>
+                                      )}
+                                      {pub.metadata?.publication_venue && (
+                                        <p className="text-gray-400 text-xs">
+                                          Published in: {pub.metadata.publication_venue} {pub.metadata?.publication_year ? `(${pub.metadata.publication_year})` : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant="outline" className="text-xs text-white border-gray-600">
+                                      {pub.metadata?.publication_type || 'Publication'}
+                                    </Badge>
+                                  </div>
+                                  {companyPubSelections[pub.id]?.selected !== false && (
+                                    <div className="space-y-2">
+                                      <Label className="text-gray-300 text-xs">
+                                        How this research relates to {companyName}:
+                                      </Label>
+                                      <Textarea
+                                        value={companyPubSelections[pub.id]?.description || ''}
+                                        onChange={(e) => {
+                                          setCompanyPubSelections(prev => ({
+                                            ...prev,
+                                            [pub.id]: {
+                                              selected: prev[pub.id]?.selected !== false,
+                                              description: e.target.value
+                                            }
+                                          }));
+                                        }}
+                                        className="text-xs bg-gray-800 border-gray-700 text-white min-h-[60px]"
+                                        placeholder={`Explain how this research is relevant to ${companyName}'s work or demonstrates applicable expertise...`}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </CardContent>

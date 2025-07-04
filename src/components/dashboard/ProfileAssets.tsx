@@ -619,7 +619,7 @@ export const ProfileAssets = () => {
                   )}
                   <div className="flex flex-wrap gap-2">
                     {exp.tags?.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
+                      <Badge key={tag} variant="secondary" className="text-xs bg-gray-700 text-gray-300 border-gray-600">
                         {tag}
                       </Badge>
                     ))}
@@ -697,7 +697,7 @@ export const ProfileAssets = () => {
                   )}
                   <div className="flex flex-wrap gap-2">
                     {edu.tags?.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
+                      <Badge key={tag} variant="secondary" className="text-xs bg-gray-700 text-gray-300 border-gray-600">
                         {tag}
                       </Badge>
                     ))}
@@ -785,7 +785,7 @@ export const ProfileAssets = () => {
                     )}
                     <div className="flex flex-wrap gap-2">
                       {other.tags?.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
+                        <Badge key={tag} variant="secondary" className="text-xs bg-gray-700 text-gray-300 border-gray-600">
                           {tag}
                         </Badge>
                       ))}
