@@ -623,6 +623,7 @@ export const UserPreferencesSetup = ({
                 <Label className="text-white mb-2 block">Min Salary ({preferences.currency || 'EUR'})</Label>
                 <Input
                   type="number"
+                  step="10000"
                   value={preferences.min_salary || ""}
                   onChange={(e) => setPreferences(prev => ({ ...prev, min_salary: Number(e.target.value) }))}
                   className="bg-gray-800 border-gray-700 text-white"
@@ -634,6 +635,7 @@ export const UserPreferencesSetup = ({
                 <Label className="text-white mb-2 block">Max Salary ({preferences.currency || 'EUR'})</Label>
                 <Input
                   type="number"
+                  step="10000"
                   value={preferences.max_salary || ""}
                   onChange={(e) => setPreferences(prev => ({ ...prev, max_salary: Number(e.target.value) }))}
                   className="bg-gray-800 border-gray-700 text-white"
