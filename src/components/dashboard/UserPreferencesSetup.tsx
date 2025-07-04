@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import type { UserProfile, UserPreferences, ComprehensiveUserProfile, CVAsset } from "@/services/userService";
 import { UserService } from "@/services/userService";
 import { githubRepoService, type GitHubRepo } from "@/services/githubRepoService";
+import { GitHubService } from "@/services/githubService";
 import { cvAnalysisService, type CVAnalysis } from "@/services/cvAnalysisService";
 
 interface UserPreferencesSetupProps {
@@ -155,26 +156,47 @@ export const UserPreferencesSetup = ({
   };
 
   const loadGitHubRepos = async () => {
-    let username = userProfile?.github_username;
-    
-    // Try to extract username from GitHub URL if not directly available
-    if (!username && userProfile?.github_url) {
-      username = githubRepoService.extractUsernameFromUrl(userProfile.github_url);
-    }
-    
-    // Only proceed if we have a GitHub username - don't error if not
-    if (!username) {
-      console.log('No GitHub username found, skipping GitHub repo loading');
-      return;
-    }
+    if (!user) return;
     
     setLoadingRepos(true);
     try {
-      const repos = await githubRepoService.getUserRepos(username);
-      setGithubRepos(repos);
+      // Check if GitHub is connected using the real service
+      const isConnected = await GitHubService.isGitHubConnected(user.id);
+      if (!isConnected) {
+        console.log('GitHub not connected, skipping repo loading');
+        return;
+      }
+
+      // Get GitHub token and load real repos
+      const token = await GitHubService.getGitHubToken(user.id);
+      if (!token) {
+        console.log('No GitHub token found, skipping repo loading');
+        return;
+      }
+
+      const repos = await GitHubService.getUserRepositories(token);
       
-      // Extract additional skills from repos
-      const repoSkills = githubRepoService.extractSkillsFromRepos(repos);
+      // Convert GitHubRepository to GitHubRepo format for compatibility
+      const convertedRepos = repos.map(repo => ({
+        id: repo.id,
+        name: repo.name,
+        description: repo.description,
+        language: repo.language,
+        stargazers_count: repo.stargazers_count,
+        updated_at: repo.updated_at,
+        html_url: repo.html_url,
+        topics: repo.topics,
+        size: 0, // Not available in GitHubRepository interface
+        forks_count: repo.forks_count,
+        open_issues_count: 0, // Not available in GitHubRepository interface
+        default_branch: 'main', // Default assumption
+        visibility: repo.private ? 'private' : 'public'
+      }));
+      
+      setGithubRepos(convertedRepos);
+      
+      // Extract additional skills from repos using the mock service's skill extraction
+      const repoSkills = githubRepoService.extractSkillsFromRepos(convertedRepos);
       setSelectedSkills(prev => {
         const combined = [...new Set([...prev, ...repoSkills])];
         return combined;
@@ -263,12 +285,12 @@ export const UserPreferencesSetup = ({
                     <p className="text-gray-300 text-sm">{cvAnalysis.summary}</p>
                     <div className="flex flex-wrap gap-2">
                       {cvAnalysis.keySkills.slice(0, 5).map(skill => (
-                        <Badge key={skill} variant="secondary" className="text-xs">
+                        <Badge key={skill} variant="secondary" className="text-xs bg-gray-700 text-gray-300 border-gray-600">
                           {skill}
                         </Badge>
                       ))}
                       {cvAnalysis.keySkills.length > 5 && (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs text-white border-gray-600">
                           +{cvAnalysis.keySkills.length - 5} more
                         </Badge>
                       )}
@@ -508,7 +530,7 @@ export const UserPreferencesSetup = ({
                     <Badge 
                       key={skill} 
                       variant="secondary" 
-                      className="cursor-pointer hover:bg-red-600 transition-colors"
+                      className="cursor-pointer hover:bg-red-600 transition-colors bg-gray-700 text-gray-300 border-gray-600"
                       onClick={() => removeSkill(skill)}
                     >
                       {skill} ×
@@ -523,7 +545,12 @@ export const UserPreferencesSetup = ({
                     className="bg-gray-800 border-gray-700 text-white"
                     onKeyPress={(e) => e.key === 'Enter' && addCustomSkill()}
                   />
-                  <Button onClick={addCustomSkill} size="sm" variant="outline">
+                  <Button 
+                    onClick={addCustomSkill} 
+                    size="sm" 
+                    variant="outline"
+                    className="border-gray-600 text-white bg-gray-800 hover:bg-gray-700 hover:text-white"
+                  >
                     Add
                   </Button>
                 </div>
@@ -631,8 +658,9 @@ export const UserPreferencesSetup = ({
                             : currentTypes.filter(t => t !== type)
                         }));
                       }}
+                      className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-600 data-[state=unchecked]:border-gray-500"
                     />
-                    <Label className="text-white capitalize">{type}</Label>
+                    <Label className="text-white capitalize cursor-pointer">{type}</Label>
                   </div>
                 ))}
               </div>
@@ -657,7 +685,7 @@ export const UserPreferencesSetup = ({
                 <CardContent>
                   <div className="flex flex-wrap gap-1">
                     {selectedSkills.map(skill => (
-                      <Badge key={skill} variant="secondary" className="text-xs">
+                      <Badge key={skill} variant="secondary" className="text-xs bg-gray-700 text-gray-300 border-gray-600">
                         {skill}
                       </Badge>
                     ))}
@@ -748,7 +776,7 @@ export const UserPreferencesSetup = ({
             variant="outline"
             onClick={handlePrevious}
             disabled={currentStep === 1}
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+            className="border-gray-600 text-white bg-gray-800 hover:bg-gray-700 hover:text-white disabled:opacity-50 disabled:text-gray-400"
           >
             Previous
           </Button>

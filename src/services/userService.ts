@@ -473,11 +473,13 @@ export class UserService {
     try {
       console.log('UserService: Fetching comprehensive user profile...');
       
-      // Fetch all data in parallel
-      const [profile, preferences, allAssets] = await Promise.all([
+      // Fetch all data in parallel, including from dedicated tables
+      const [profile, preferences, allAssets, selectedRepos, selectedPubs] = await Promise.all([
         this.getUserProfile(userId),
         this.getUserPreferences(userId),
-        this.getUserCVAssets(userId)
+        this.getUserCVAssets(userId),
+        this.getSelectedRepositoriesAsAssets(userId),
+        this.getSelectedPublicationsAsAssets(userId)
       ]);
 
       if (!profile || !preferences) {
@@ -485,19 +487,22 @@ export class UserService {
         return null;
       }
 
-      // Group assets by type
+      // Group assets by type, prioritizing dedicated table data over cv_assets
       const experiences = allAssets.filter(asset => asset.asset_type === 'experience');
       const education = allAssets.filter(asset => asset.asset_type === 'education');
       const other = allAssets.filter(asset => asset.asset_type === 'other');
-      const repositories = allAssets.filter(asset => asset.asset_type === 'repository');
-      const publications = allAssets.filter(asset => asset.asset_type === 'publication');
+      
+      // Use dedicated table data for repositories and publications if available
+      const repositories = selectedRepos.length > 0 ? selectedRepos : allAssets.filter(asset => asset.asset_type === 'repository');
+      const publications = selectedPubs.length > 0 ? selectedPubs : allAssets.filter(asset => asset.asset_type === 'publication');
 
       console.log('UserService: Comprehensive profile assembled:', {
         experiencesCount: experiences.length,
         educationCount: education.length,
         otherCount: other.length,
         repositoriesCount: repositories.length,
-        publicationsCount: publications.length
+        publicationsCount: publications.length,
+        fromDedicatedTables: { repos: selectedRepos.length, pubs: selectedPubs.length }
       });
 
       return {
@@ -512,6 +517,142 @@ export class UserService {
     } catch (error) {
       console.error('Error fetching comprehensive user profile:', error);
       return null;
+    }
+  }
+
+  /**
+   * Fetches selected repositories from dedicated table and converts to CVAsset format
+   */
+  private static async getSelectedRepositoriesAsAssets(userId: string): Promise<CVAsset[]> {
+    try {
+      // Check if we're in development mode with bypass auth
+      if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+        // Try localStorage first for dev mode
+        const saved = localStorage.getItem('selected_repositories');
+        if (saved) {
+          const localRepos = JSON.parse(saved);
+          return localRepos.map((repo: any) => ({
+            id: `repo_${repo.github_repo_id}`,
+            user_id: userId,
+            asset_type: 'repository' as const,
+            title: repo.repo_name,
+            description: repo.user_description || repo.repo_description || '',
+            external_url: repo.repo_url,
+            tags: [...(repo.programming_languages || []), ...(repo.topics || [])],
+            metadata: {
+              github_id: repo.github_repo_id,
+              language: repo.programming_languages?.[0],
+              stargazers_count: repo.stars_count,
+              forks_count: repo.forks_count,
+              is_private: repo.is_private
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+        }
+      }
+
+      // Fetch from Supabase
+      const { data, error } = await supabase
+        .from('selected_repositories')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_selected', true);
+
+      if (error) {
+        console.error('Error fetching selected repositories:', error);
+        return [];
+      }
+
+      return (data || []).map(repo => ({
+        id: `repo_${repo.github_repo_id}`,
+        user_id: userId,
+        asset_type: 'repository' as const,
+        title: repo.repo_name,
+        description: repo.user_description || repo.repo_description || '',
+        external_url: repo.repo_url,
+        tags: [...(repo.programming_languages || []), ...(repo.topics || [])],
+        metadata: {
+          github_id: repo.github_repo_id,
+          language: repo.programming_languages?.[0],
+          stargazers_count: repo.stars_count,
+          forks_count: repo.forks_count,
+          is_private: repo.is_private
+        },
+        created_at: repo.created_at || new Date().toISOString(),
+        updated_at: repo.updated_at || new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Error fetching selected repositories as assets:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetches selected publications from dedicated table and converts to CVAsset format
+   */
+  private static async getSelectedPublicationsAsAssets(userId: string): Promise<CVAsset[]> {
+    try {
+      // Check if we're in development mode with bypass auth
+      if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+        // Try localStorage first for dev mode
+        const saved = localStorage.getItem('selected_publications');
+        if (saved) {
+          const localPubs = JSON.parse(saved);
+          return localPubs.map((pub: any) => ({
+            id: `pub_${pub.scholar_publication_id}`,
+            user_id: userId,
+            asset_type: 'publication' as const,
+            title: pub.title,
+            description: pub.user_description || pub.abstract || '',
+            external_url: pub.scholar_link,
+            tags: [...(pub.keywords || []), pub.publication_type || 'Publication'],
+            metadata: {
+              authors: pub.authors,
+              publication_venue: pub.publication_venue,
+              publication_year: pub.publication_year,
+              citation_count: pub.citation_count,
+              publication_type: pub.publication_type
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+        }
+      }
+
+      // Fetch from Supabase
+      const { data, error } = await supabase
+        .from('selected_publications')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_selected', true);
+
+      if (error) {
+        console.error('Error fetching selected publications:', error);
+        return [];
+      }
+
+      return (data || []).map(pub => ({
+        id: `pub_${pub.scholar_publication_id}`,
+        user_id: userId,
+        asset_type: 'publication' as const,
+        title: pub.title,
+        description: pub.user_description || pub.abstract || '',
+        external_url: pub.scholar_link,
+        tags: [...(pub.keywords || []), pub.publication_type || 'Publication'],
+        metadata: {
+          authors: pub.authors,
+          publication_venue: pub.publication_venue,
+          publication_year: pub.publication_year,
+          citation_count: pub.citation_count,
+          publication_type: pub.publication_type
+        },
+        created_at: pub.created_at || new Date().toISOString(),
+        updated_at: pub.updated_at || new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Error fetching selected publications as assets:', error);
+      return [];
     }
   }
 }
