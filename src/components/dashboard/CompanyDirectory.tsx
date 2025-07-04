@@ -473,26 +473,50 @@ export const CompanyDirectory = () => {
           source: 'real_scraping' as const
         }));
 
-        setJobOpportunities(prev => new Map(prev.set(company.id, jobOpportunities)));
-        setSelectedCompany(company);
-        setJobDialogOpen(true);
+        // Store jobs in localStorage and navigate to MyJobs page
+        const jobsForMyJobsPage = jobOpportunities.map(job => ({
+          id: job.id,
+          title: job.title,
+          company: company.name,
+          location: job.location,
+          salary: job.salary_range,
+          type: 'Full-time',
+          description: job.description,
+          requirements: job.requirements,
+          postedDate: new Date().toISOString().split('T')[0],
+          applicationUrl: job.url,
+          matchScore: Math.round(job.confidence_score * 100),
+          isNew: true,
+          source: 'Company Directory',
+          tags: job.requirements?.slice(0, 3) || []
+        }));
+        
+        // Store the jobs with current timestamp for "new" indicators
+        localStorage.setItem('discoveredJobs', JSON.stringify(jobsForMyJobsPage));
+        localStorage.setItem('discoveredJobsTimestamp', Date.now().toString());
+        localStorage.setItem('selectedCompany', company.name);
         
         const relevantJobs = jobOpportunities.filter(job => job.confidence_score > 0.5);
         
         toast.success(`🎉 AI job discovery complete!`, {
-          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Powered by AI web search`
+          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Navigating to My Jobs`,
+          action: {
+            label: "View Jobs",
+            onClick: () => {
+              // Trigger navigation to MyJobs
+              window.dispatchEvent(new CustomEvent('navigateToMyJobs', { 
+                detail: { companyFilter: company.name } 
+              }));
+            }
+          }
         });
 
-        // Show workflow summary
+        // Automatically navigate to MyJobs page
         setTimeout(() => {
-          toast.info(`🔗 Search Summary`, {
-            description: `Used ${result.agent_system_used} agent system • Execution time: ${Math.round(result.execution_time)}s`,
-            action: {
-              label: "View Jobs",
-              onClick: () => setJobDialogOpen(true)
-            }
-          });
-        }, 1000);
+          window.dispatchEvent(new CustomEvent('navigateToMyJobs', { 
+            detail: { companyFilter: company.name } 
+          }));
+        }, 1500);
       } else {
         // Check if this is a search failure vs no matching jobs
         if (result.total_jobs === 0) {
