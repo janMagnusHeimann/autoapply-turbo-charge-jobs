@@ -328,7 +328,7 @@ export const UserPreferencesSetup = ({
                             <p className="text-gray-400 text-xs">{exp.metadata?.company || 'Company not specified'}</p>
                             <p className="text-gray-500 text-xs mt-1">{exp.description}</p>
                           </div>
-                          <Badge variant="outline" className="text-xs ml-2">
+                          <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
                             Experience
                           </Badge>
                         </div>
@@ -372,7 +372,7 @@ export const UserPreferencesSetup = ({
                             <p className="text-gray-400 text-xs">{edu.metadata?.institution || 'Institution not specified'}</p>
                             <p className="text-gray-500 text-xs mt-1">{edu.description}</p>
                           </div>
-                          <Badge variant="outline" className="text-xs ml-2">
+                          <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
                             Education
                           </Badge>
                         </div>
@@ -414,7 +414,7 @@ export const UserPreferencesSetup = ({
                           <div className="flex-1">
                             <h4 className="text-white text-sm font-medium">{repo.title}</h4>
                             {repo.metadata?.language && (
-                              <Badge variant="outline" className="text-xs mr-2 mb-1">
+                              <Badge variant="outline" className="text-xs mr-2 mb-1 text-white border-gray-600">
                                 {repo.metadata.language}
                               </Badge>
                             )}
@@ -459,7 +459,7 @@ export const UserPreferencesSetup = ({
                             <h4 className="text-white text-sm font-medium">{pub.title}</h4>
                             <p className="text-gray-400 text-xs">{pub.description}</p>
                           </div>
-                          <Badge variant="outline" className="text-xs ml-2">
+                          <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
                             Publication
                           </Badge>
                         </div>
@@ -495,7 +495,7 @@ export const UserPreferencesSetup = ({
                             <p className="text-gray-400 text-xs">{other.metadata?.organization || 'Organization not specified'}</p>
                             <p className="text-gray-500 text-xs mt-1">{other.description}</p>
                           </div>
-                          <Badge variant="outline" className="text-xs ml-2">
+                          <Badge variant="outline" className="text-xs ml-2 text-white border-gray-600">
                             {other.metadata?.category || 'Achievement'}
                           </Badge>
                         </div>
