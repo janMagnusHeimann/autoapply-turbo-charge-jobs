@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus } from "lucide-react";
+import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestr
 import { autonomousJobAgent, type JobOpportunity, type UserProfile } from "@/services/autonomousJobAgent";
 import { unifiedJobDiscoveryService, type JobDiscoveryResult } from "@/services/unifiedJobDiscoveryService";
 import { cvGenerationService } from "@/services/cvGenerationService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -55,6 +55,9 @@ export const CompanyDirectory = () => {
   const [addingCompany, setAddingCompany] = useState(false);
   const [preferencesSetupOpen, setPreferencesSetupOpen] = useState(false);
   const [selectedCompanyForPreferences, setSelectedCompanyForPreferences] = useState<Company | null>(null);
+  const [cvPreviewOpen, setCvPreviewOpen] = useState(false);
+  const [selectedCvGeneration, setSelectedCvGeneration] = useState<CVGeneration | null>(null);
+  const [jobCVs, setJobCVs] = useState<Map<string, CVGeneration>>(new Map());
   const [newCompany, setNewCompany] = useState({
     name: '',
     description: '',
@@ -359,6 +362,9 @@ export const CompanyDirectory = () => {
         selectedTemplate
       );
 
+      // Store the generated CV
+      setJobCVs(prev => new Map(prev).set(jobOpportunity.id, cvGeneration));
+
       // Create application record
       const applicationRecord = await cvGenerationService.createApplicationRecord(
         user.id,
@@ -371,20 +377,11 @@ export const CompanyDirectory = () => {
         {
           description: `Tailored CV created with ${cvGeneration.optimizationMetadata.selectedProjectsCount} projects and ${cvGeneration.optimizationMetadata.highlightedSkillsCount} highlighted skills`,
           action: {
-            label: "Download CV",
-            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
-          }
-        }
-      );
-
-      // Show optimization details
-      toast.info(
-        `CV Optimization Details`,
-        {
-          description: `Relevance Score: ${Math.round(cvGeneration.optimizationMetadata.relevanceScore * 100)}% • Template: ${availableTemplates.find(t => t.id === selectedTemplate)?.name}`,
-          action: {
             label: "View CV",
-            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
+            onClick: () => {
+              setSelectedCvGeneration(cvGeneration);
+              setCvPreviewOpen(true);
+            }
           }
         }
       );
@@ -400,6 +397,18 @@ export const CompanyDirectory = () => {
     } finally {
       setGeneratingCV(null);
     }
+  };
+
+  const handleViewCV = (cvGeneration: CVGeneration) => {
+    setSelectedCvGeneration(cvGeneration);
+    setCvPreviewOpen(true);
+  };
+
+  const handleDownloadCV = (cvGeneration: CVGeneration) => {
+    window.open(cvGeneration.pdfUrl, '_blank');
+    toast.success("CV Downloaded", {
+      description: "The CV has been opened in a new tab for download"
+    });
   };
 
   const handleDiscoverJobs = async (company: Company) => {
@@ -1073,25 +1082,75 @@ export const CompanyDirectory = () => {
             )}
 
             {/* Job Opportunities */}
-            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => (
-              <Card key={job.id} className="bg-white border-gray-200 shadow-sm">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-gray-900 text-lg">{job.title}</CardTitle>
-                      <div className="flex items-center gap-4 mt-2">
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
-                          {Math.round(job.confidence_score * 100)}% match
-                        </Badge>
-                        <Badge 
-                          variant="default"
-                          className="text-xs bg-blue-600 text-white"
-                        >
-                          🤖 Multi-Agent Discovery
-                        </Badge>
-                        <span className="text-sm text-gray-600">📍 {job.location}</span>
+            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => {
+              const hasCV = jobCVs.has(job.id);
+              const cvGeneration = jobCVs.get(job.id);
+              
+              return (
+                <Card key={job.id} className="bg-gray-50 border-gray-200">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CardTitle className="text-gray-900">{job.title}</CardTitle>
+                          {hasCV && (
+                            <Badge variant="secondary" className="bg-blue-500 text-white">
+                              CV Ready
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {job.location} • {job.salary_range || 'Salary not specified'}
+                        </div>
                       </div>
                     </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <p className="text-gray-700 mb-4">{job.description}</p>
+                    
+                    {/* CV Section */}
+                    {hasCV && cvGeneration && (
+                      <div className="border-t border-gray-300 pt-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Briefcase className="w-4 h-4 text-blue-500" />
+                            Generated CV
+                          </h4>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleViewCV(cvGeneration)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View CV
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleDownloadCV(cvGeneration)}
+                              className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {/* CV Preview */}
+                                                 <div className="bg-gray-100 rounded-lg p-4">
+                           <div className="grid grid-cols-1 gap-4">
+                             <div>
+                               <h5 className="font-medium text-gray-900 mb-2">Optimization</h5>
+                               <div className="text-sm text-gray-600">
+                                 {cvGeneration.optimizationMetadata.selectedProjectsCount} projects • {cvGeneration.optimizationMetadata.highlightedSkillsCount} skills
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                      </div>
+                    )}
+                    
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -1115,94 +1174,169 @@ export const CompanyDirectory = () => {
                           </>
                         ) : (
                           <>
-                            📄 Generate CV
+                            📄 {hasCV ? 'Regenerate CV' : 'Generate CV'}
                           </>
                         )}
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          toast.success("Job URL Found!", {
-                            description: `Agent successfully navigated to: ${job.url}`
-                          });
-                        }}
-                        className="bg-green-600 hover:bg-green-700 border border-green-600 text-white"
-                      >
-                        ✅ Verify
-                      </Button>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Job Description</h4>
-                    <p className="text-sm text-gray-700 leading-relaxed">{job.description}</p>
-                  </div>
-                  
-                  {job.requirements && job.requirements.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Requirements</h4>
-                      <div className="space-y-1">
-                        {job.requirements.map((req, index) => (
-                          <div key={index} className="flex items-start gap-2">
-                            <span className="text-blue-600 text-xs mt-1">•</span>
-                            <span className="text-sm text-gray-700">{req}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {job.salary_range && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-1">Salary Range</h4>
-                      <p className="text-sm text-gray-700">{job.salary_range}</p>
-                    </div>
-                  )}
-                  
-                  <div className="pt-2 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-600 font-medium">
-                        🤖 Found by Multi-Agent Workflow
-                      </span>
-                      <Badge 
-                        variant="default"
-                        className="text-xs bg-blue-600 text-white"
-                      >
-                        ✅ VERIFIED & MATCHED
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 font-medium">Job URL:</span>
-                        <a
-                          href={job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 break-all underline"
-                        >
-                          {job.url}
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 font-medium">Career Page:</span>
-                        <span className="text-xs text-blue-600 font-medium">Verified by AI Agent</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            
-            {selectedCompany && (!jobOpportunities.get(selectedCompany.id) || jobOpportunities.get(selectedCompany.id)?.length === 0) && (
-              <div className="text-center py-8">
-                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-700 mb-2">No jobs found</h3>
-                <p className="text-gray-600">The autonomous agent couldn't find matching positions</p>
-              </div>
-            )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CV Preview Modal */}
+      <Dialog open={cvPreviewOpen} onOpenChange={setCvPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white border-gray-300 text-gray-900">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <Briefcase className="w-5 h-5" />
+              CV Preview
+            </DialogTitle>
+            <DialogClose className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1 rounded">
+              <X className="w-4 h-4" />
+            </DialogClose>
+          </DialogHeader>
+          
+          {selectedCvGeneration && (
+            <div className="space-y-6">
+              {/* CV Header */}
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {selectedCvGeneration.cvData.profile.name}
+                    </h3>
+                    <p className="text-gray-600">{selectedCvGeneration.cvData.profile.title}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleDownloadCV(selectedCvGeneration)}
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* CV Content */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Professional Summary */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Professional Summary</h4>
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {selectedCvGeneration.cvData.profile.summary}
+                  </p>
+                </div>
+
+                {/* Contact Information */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Contact Information</h4>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div>📧 {selectedCvGeneration.cvData.profile.email}</div>
+                    <div>📱 {selectedCvGeneration.cvData.profile.phone}</div>
+                    <div>📍 {selectedCvGeneration.cvData.profile.location}</div>
+                    {selectedCvGeneration.cvData.profile.linkedinUrl && (
+                      <div>💼 {selectedCvGeneration.cvData.profile.linkedinUrl}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Skills */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Key Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCvGeneration.cvData.skills.highlighted.map((skill, index) => (
+                      <Badge key={index} variant="secondary" className="text-xs">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Work Experience */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Work Experience</h4>
+                  <div className="space-y-3">
+                    {selectedCvGeneration.cvData.experience.slice(0, 3).map((exp, index) => (
+                      <div key={index} className="border-l-2 border-blue-500 pl-3">
+                        <div className="font-medium text-gray-900">{exp.position}</div>
+                        <div className="text-sm text-gray-600">{exp.company} • {exp.duration}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Projects */}
+                {selectedCvGeneration.cvData.selectedProjects.length > 0 && (
+                  <div className="md:col-span-2">
+                    <h4 className="font-semibold text-gray-900 mb-3">Featured Projects</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedCvGeneration.cvData.selectedProjects.map((project, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-4">
+                          <div className="font-medium text-gray-900 mb-2">{project.name}</div>
+                          <p className="text-sm text-gray-700 mb-2">{project.description}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {project.technologies.map((tech, techIndex) => (
+                              <Badge key={techIndex} variant="outline" className="text-xs">
+                                {tech}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Publications */}
+                {selectedCvGeneration.cvData.selectedPublications.length > 0 && (
+                  <div className="md:col-span-2">
+                    <h4 className="font-semibold text-gray-900 mb-3">Publications</h4>
+                    <div className="space-y-3">
+                      {selectedCvGeneration.cvData.selectedPublications.map((pub, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-4">
+                          <div className="font-medium text-gray-900 mb-1">{pub.title}</div>
+                          <div className="text-sm text-gray-600 mb-2">{pub.authors} • {pub.year}</div>
+                          <p className="text-sm text-gray-700">{pub.abstract}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Optimization Metadata */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">CV Optimization Details</h4>
+                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-blue-600">
+                       {selectedCvGeneration.optimizationMetadata.selectedProjectsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Projects Selected</div>
+                   </div>
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-purple-600">
+                       {selectedCvGeneration.optimizationMetadata.highlightedSkillsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Skills Highlighted</div>
+                   </div>
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-orange-600">
+                       {selectedCvGeneration.optimizationMetadata.selectedPublicationsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Publications</div>
+                   </div>
+                 </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

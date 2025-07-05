@@ -11,6 +11,13 @@ export interface UserProfile {
   linkedin_url?: string | null;
   github_url?: string | null;
   portfolio_url?: string | null;
+  twitter_url?: string | null;
+  medium_url?: string | null;
+  blog_url?: string | null;
+  youtube_url?: string | null;
+  behance_url?: string | null;
+  dribbble_url?: string | null;
+  stackoverflow_url?: string | null;
   professional_summary?: string | null;
   current_title?: string | null;
   github_username: string | null;

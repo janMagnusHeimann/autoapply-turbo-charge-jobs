@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award } from "lucide-react";
+import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -61,6 +61,27 @@ interface OtherForm {
   current: boolean;
 }
 
+interface SocialLink {
+  id?: string;
+  platform: string;
+  url: string;
+  username: string;
+  description?: string;
+}
+
+interface SocialLinksData {
+  linkedin?: string;
+  github?: string;
+  x?: string;
+  medium?: string;
+  portfolio?: string;
+  blog?: string;
+  youtube?: string;
+  behance?: string;
+  dribbble?: string;
+  stackoverflow?: string;
+}
+
 export const ProfileAssets = () => {
   const { user } = useAuth();
   const [assets, setAssets] = useState<CVAsset[]>([]);
@@ -73,6 +94,10 @@ export const ProfileAssets = () => {
   const [editingExperience, setEditingExperience] = useState<ExperienceForm | null>(null);
   const [editingEducation, setEditingEducation] = useState<EducationForm | null>(null);
   const [editingOther, setEditingOther] = useState<OtherForm | null>(null);
+  
+  // Social Links state
+  const [socialLinks, setSocialLinks] = useState<SocialLinksData>({});
+  const [loadingSocialLinks, setLoadingSocialLinks] = useState(false);
   
   const [experienceForm, setExperienceForm] = useState<ExperienceForm>({
     company: '',
@@ -111,6 +136,7 @@ export const ProfileAssets = () => {
   useEffect(() => {
     if (user) {
       fetchAssets();
+      fetchSocialLinks();
     }
   }, [user]);
 
@@ -134,6 +160,58 @@ export const ProfileAssets = () => {
       setAssets([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSocialLinks = async () => {
+    if (!user) return;
+    
+    setLoadingSocialLinks(true);
+    try {
+      const profile = await UserService.getUserProfile(user.id);
+      if (profile) {
+        setSocialLinks({
+          linkedin: profile.linkedin_url || '',
+          github: profile.github_url || '',
+          x: profile.twitter_url || '',
+          medium: profile.medium_url || '',
+          portfolio: profile.portfolio_url || '',
+          blog: profile.blog_url || '',
+          youtube: profile.youtube_url || '',
+          behance: profile.behance_url || '',
+          dribbble: profile.dribbble_url || '',
+          stackoverflow: profile.stackoverflow_url || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching social links:', error);
+    } finally {
+      setLoadingSocialLinks(false);
+    }
+  };
+
+  const saveSocialLinks = async () => {
+    if (!user) return;
+    
+    setLoadingSocialLinks(true);
+    try {
+      await UserService.updateUserProfile(user.id, {
+        linkedin_url: socialLinks.linkedin || null,
+        github_url: socialLinks.github || null,
+        twitter_url: socialLinks.x || null,
+        medium_url: socialLinks.medium || null,
+        portfolio_url: socialLinks.portfolio || null,
+        blog_url: socialLinks.blog || null,
+        youtube_url: socialLinks.youtube || null,
+        behance_url: socialLinks.behance || null,
+        dribbble_url: socialLinks.dribbble || null,
+        stackoverflow_url: socialLinks.stackoverflow || null
+      });
+      console.log('Social links saved successfully');
+    } catch (error) {
+      console.error('Error saving social links:', error);
+    } finally {
+      setLoadingSocialLinks(false);
     }
   };
 
@@ -528,8 +606,11 @@ export const ProfileAssets = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="experience" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 bg-gray-800">
+      <Tabs defaultValue="social" className="w-full">
+        <TabsList className="grid w-full grid-cols-6 bg-gray-800">
+          <TabsTrigger value="social" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
+            Social Links
+          </TabsTrigger>
           <TabsTrigger value="experience" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Experience
           </TabsTrigger>
@@ -546,6 +627,285 @@ export const ProfileAssets = () => {
             Publications
           </TabsTrigger>
         </TabsList>
+
+        {/* Social Links Tab */}
+        <TabsContent value="social" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Social Links & Online Presence</h2>
+              <p className="text-gray-400">Add your professional social media profiles and online portfolios to strengthen your professional brand</p>
+            </div>
+            <Button
+              onClick={saveSocialLinks}
+              disabled={loadingSocialLinks}
+              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 disabled:opacity-50"
+            >
+              {loadingSocialLinks ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+
+          {/* Helper Text */}
+          <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <ExternalLink className="w-3 h-3 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium mb-1">Why add social links?</h3>
+                <p className="text-blue-200 text-sm">
+                  These links will be included in your generated CVs and help employers learn more about your professional work, 
+                  coding projects, thought leadership, and online presence. Only add professional profiles you want to showcase.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* LinkedIn */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Linkedin className="w-5 h-5 text-white" />
+                  </div>
+                  LinkedIn Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">LinkedIn URL</Label>
+                  <Input
+                    value={socialLinks.linkedin || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))}
+                    placeholder="https://linkedin.com/in/your-profile"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your professional LinkedIn profile</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* GitHub */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
+                    <Github className="w-5 h-5 text-white" />
+                  </div>
+                  GitHub Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">GitHub URL</Label>
+                  <Input
+                    value={socialLinks.github || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, github: e.target.value }))}
+                    placeholder="https://github.com/your-username"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your code portfolio and repositories</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* X (formerly Twitter) */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                    <X className="w-5 h-5 text-white" />
+                  </div>
+                  X Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">X URL</Label>
+                  <Input
+                    value={socialLinks.x || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, x: e.target.value }))}
+                    placeholder="https://x.com/your-handle"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your professional thoughts and networking</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Medium */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                    <Edit className="w-5 h-5 text-white" />
+                  </div>
+                  Medium Blog
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Medium URL</Label>
+                  <Input
+                    value={socialLinks.medium || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, medium: e.target.value }))}
+                    placeholder="https://medium.com/@your-username"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your published articles and thought leadership</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Portfolio Website */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-white" />
+                  </div>
+                  Portfolio Website
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Portfolio URL</Label>
+                  <Input
+                    value={socialLinks.portfolio || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, portfolio: e.target.value }))}
+                    placeholder="https://your-portfolio.com"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your personal website or portfolio</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Personal Blog */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                    <Link className="w-5 h-5 text-white" />
+                  </div>
+                  Personal Blog
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Blog URL</Label>
+                  <Input
+                    value={socialLinks.blog || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, blog: e.target.value }))}
+                    placeholder="https://your-blog.com"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your personal blog or tech writing</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stack Overflow */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
+                    <Star className="w-5 h-5 text-white" />
+                  </div>
+                  Stack Overflow
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Stack Overflow URL</Label>
+                  <Input
+                    value={socialLinks.stackoverflow || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, stackoverflow: e.target.value }))}
+                    placeholder="https://stackoverflow.com/users/your-id"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your programming Q&A contributions</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* YouTube */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-white" />
+                  </div>
+                  YouTube Channel
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">YouTube URL</Label>
+                  <Input
+                    value={socialLinks.youtube || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))}
+                    placeholder="https://youtube.com/@your-channel"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your video content and tutorials</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Preview Section */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">Link Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(socialLinks).map(([platform, url]) => {
+                  if (!url) return null;
+                  
+                  const getPlatformIcon = (platform: string) => {
+                    switch (platform) {
+                      case 'linkedin': return <Linkedin className="w-4 h-4" />;
+                      case 'github': return <Github className="w-4 h-4" />;
+                      case 'x': return <X className="w-4 h-4" />;
+                      case 'medium': return <Edit className="w-4 h-4" />;
+                      case 'portfolio': return <Globe className="w-4 h-4" />;
+                      case 'blog': return <Link className="w-4 h-4" />;
+                      case 'stackoverflow': return <Star className="w-4 h-4" />;
+                      case 'youtube': return <Globe className="w-4 h-4" />;
+                      default: return <ExternalLink className="w-4 h-4" />;
+                    }
+                  };
+                  
+                  return (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    >
+                      {getPlatformIcon(platform)}
+                      <span className="text-sm capitalize">{platform}</span>
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  );
+                })}
+              </div>
+              {Object.values(socialLinks).every(url => !url) && (
+                <p className="text-gray-400 text-center py-4">Add your social links above to see the preview</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Professional Experience Tab */}
         <TabsContent value="experience" className="space-y-6">

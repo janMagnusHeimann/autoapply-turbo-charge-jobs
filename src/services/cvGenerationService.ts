@@ -2,6 +2,7 @@ import { pdf } from '@react-pdf/renderer';
 import { supabase } from '@/integrations/supabase/client';
 import { jobAnalysisService } from './jobAnalysisService';
 import { CVDocument, CV_TEMPLATES } from './pdfTemplates';
+import { UserService } from './userService';
 import type { 
   CVData, 
   CVGeneration, 
@@ -30,18 +31,29 @@ export class CVGenerationService {
     templateId: string = 'technical'
   ): Promise<CVGeneration> {
     try {
-      // 1. Fetch user profile and data
+      console.log('Starting CV generation for user:', userId);
+      
+      // 1. Fetch user profile and data with error handling
       const userProfile = await this.fetchUserProfile(userId);
+      console.log('User profile fetched:', userProfile?.name);
+      
       const experiences = await this.fetchUserExperiences(userId);
+      console.log('Experiences fetched:', experiences?.length || 0);
+      
       const projects = await this.fetchGitHubProjects(userId);
+      console.log('Projects fetched:', projects?.length || 0);
+      
       const publications = await this.fetchPublications(userId);
+      console.log('Publications fetched:', publications?.length || 0);
+      
       const skills = await this.fetchUserSkills(userId);
+      console.log('Skills fetched:', skills?.length || 0);
 
       // 2. Analyze job requirements using AI
       const jobAnalysis = await jobAnalysisService.analyzeJobDescription(
         jobOpportunity.title,
         jobOpportunity.description || '',
-        `Company: ${jobOpportunity.company}, Location: ${jobOpportunity.location}`
+        `Company: ${jobOpportunity.company || 'Company'}, Location: ${jobOpportunity.location || 'Location'}`
       );
 
       // 3. Optimize content selection using AI
@@ -108,38 +120,86 @@ export class CVGenerationService {
   ): Promise<CVData> {
     const optimizationNotes: string[] = [];
 
+    // Ensure all arrays are defined
+    const safeProjects = Array.isArray(projects) ? projects : [];
+    const safePublications = Array.isArray(publications) ? publications : [];
+    const safeSkills = Array.isArray(skills) ? skills : [];
+    const safeExperiences = Array.isArray(experiences) ? experiences : [];
+
     // 1. Score and select projects
-    const scoredProjects = await jobAnalysisService.scoreProjectRelevance(projects, jobAnalysis);
-    const selectedProjects = scoredProjects.slice(0, 4);
+    let selectedProjects: GitHubProject[] = [];
+    try {
+      const scoredProjects = await jobAnalysisService.scoreProjectRelevance(safeProjects, jobAnalysis);
+      selectedProjects = Array.isArray(scoredProjects) ? scoredProjects.slice(0, 4) : safeProjects.slice(0, 4);
+    } catch (error) {
+      console.error('Error scoring projects:', error);
+      selectedProjects = safeProjects.slice(0, 4);
+    }
     optimizationNotes.push(`Selected ${selectedProjects.length} most relevant projects`);
 
     // 2. Score and select publications
-    const scoredPublications = await jobAnalysisService.scorePublicationRelevance(publications, jobAnalysis);
-    const selectedPublications = scoredPublications.slice(0, 3);
+    let selectedPublications: Publication[] = [];
+    try {
+      const scoredPublications = await jobAnalysisService.scorePublicationRelevance(safePublications, jobAnalysis);
+      selectedPublications = Array.isArray(scoredPublications) ? scoredPublications.slice(0, 3) : safePublications.slice(0, 3);
+    } catch (error) {
+      console.error('Error scoring publications:', error);
+      selectedPublications = safePublications.slice(0, 3);
+    }
     if (selectedPublications.length > 0) {
       optimizationNotes.push(`Selected ${selectedPublications.length} relevant publications`);
     }
 
     // 3. Score and highlight skills
-    const scoredSkills = jobAnalysisService.scoreSkillRelevance(skills, jobAnalysis);
-    const highlightedSkills = scoredSkills
-      .filter(skill => skill.isHighlighted)
-      .map(skill => skill.name);
+    let scoredSkills: Skill[] = [];
+    let highlightedSkills: string[] = [];
+    try {
+      scoredSkills = jobAnalysisService.scoreSkillRelevance(safeSkills, jobAnalysis);
+      if (Array.isArray(scoredSkills)) {
+        highlightedSkills = scoredSkills
+          .filter(skill => skill && skill.isHighlighted)
+          .map(skill => skill.name)
+          .filter(name => name); // Remove any undefined names
+      } else {
+        scoredSkills = safeSkills;
+        highlightedSkills = safeSkills.slice(0, 5).map(skill => skill.name).filter(name => name);
+      }
+    } catch (error) {
+      console.error('Error scoring skills:', error);
+      scoredSkills = safeSkills;
+      highlightedSkills = safeSkills.slice(0, 5).map(skill => skill.name).filter(name => name);
+    }
     optimizationNotes.push(`Highlighted ${highlightedSkills.length} key skills`);
 
     // 4. Optimize work experience
-    const optimizedExperiences = await jobAnalysisService.optimizeExperienceBullets(
-      experiences,
-      jobAnalysis
-    );
+    let optimizedExperiences: WorkExperience[] = [];
+    try {
+      optimizedExperiences = await jobAnalysisService.optimizeExperienceBullets(
+        safeExperiences,
+        jobAnalysis
+      );
+      if (!Array.isArray(optimizedExperiences)) {
+        optimizedExperiences = safeExperiences;
+      }
+    } catch (error) {
+      console.error('Error optimizing experiences:', error);
+      optimizedExperiences = safeExperiences;
+    }
     optimizationNotes.push('Reordered experience bullets to emphasize relevance');
 
     // 5. Generate custom professional summary
-    const summaryOptimization = await jobAnalysisService.optimizeProfessionalSummary(
-      userProfile.professionalSummary,
-      jobAnalysis,
-      { title: userProfile.title, name: userProfile.name }
-    );
+    let customSummary = userProfile.professionalSummary;
+    try {
+      const summaryOptimization = await jobAnalysisService.optimizeProfessionalSummary(
+        userProfile.professionalSummary,
+        jobAnalysis,
+        { title: userProfile.title, name: userProfile.name }
+      );
+      customSummary = summaryOptimization?.optimizedContent || userProfile.professionalSummary;
+    } catch (error) {
+      console.error('Error optimizing summary:', error);
+      customSummary = userProfile.professionalSummary;
+    }
     optimizationNotes.push('Customized professional summary for job requirements');
 
     return {
@@ -151,7 +211,7 @@ export class CVGenerationService {
         all: scoredSkills,
         highlighted: highlightedSkills
       },
-      customSummary: summaryOptimization.optimizedContent,
+      customSummary,
       optimizationNotes
     };
   }
@@ -197,71 +257,337 @@ export class CVGenerationService {
     } catch (error) {
       console.error('PDF upload error:', error);
       // Fallback: return a data URL for demo purposes
-      return URL.createObjectURL(pdfBlob);
+      const dataUrl = URL.createObjectURL(pdfBlob);
+      console.log('Using data URL fallback for PDF:', dataUrl);
+      return dataUrl;
     }
   }
 
   /**
-   * Fetch user profile data
+   * Fetch user profile data from the correct user_profiles table
    */
   private async fetchUserProfile(userId: string): Promise<UserProfile> {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('user_profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single();
 
       if (error) throw error;
 
       return {
-        id: data.id,
-        name: data.full_name || 'John Developer',
-        email: data.email || 'john@example.com',
-        phone: '+1 (555) 123-4567',
-        location: 'Berlin, Germany',
-        linkedinUrl: 'https://linkedin.com/in/johndeveloper',
-        portfolioUrl: 'https://johndeveloper.dev',
-        githubUrl: data.github_username ? `https://github.com/${data.github_username}` : 'https://github.com/johndeveloper',
-        professionalSummary: 'Experienced software engineer with a passion for building scalable applications and leading high-performing teams. Proven track record of delivering complex projects on time and mentoring junior developers.',
-        title: 'Senior Software Engineer'
+        id: data.user_id,
+        name: data.full_name || 'User',
+        email: data.email,
+        phone: data.phone || undefined,
+        location: data.location || 'Not specified',
+        linkedinUrl: data.linkedin_url || undefined,
+        portfolioUrl: data.portfolio_url || undefined,
+        githubUrl: data.github_url || undefined,
+        professionalSummary: data.professional_summary || 'Professional software developer with experience in modern technologies.',
+        title: data.current_title || 'Software Developer'
       };
     } catch (error) {
+      console.error('Error fetching user profile:', error);
       // Fallback mock data
       return this.getMockUserProfile();
     }
   }
 
   /**
-   * Fetch user work experiences
+   * Fetch user work experiences from cv_assets table
    */
   private async fetchUserExperiences(userId: string): Promise<WorkExperience[]> {
-    // For now, return mock data. In production, this would fetch from database
-    return this.getMockExperiences();
+    try {
+      const { data, error } = await supabase
+        .from('cv_assets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('asset_type', 'experience')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const experiences: WorkExperience[] = (data || []).map(asset => {
+        const metadata = asset.metadata as any || {};
+        return {
+          id: asset.id,
+          company: metadata.company || 'Company',
+          position: asset.title || 'Position',
+          location: metadata.location || 'Location',
+          startDate: metadata.startDate || '',
+          endDate: metadata.current ? null : (metadata.endDate || ''),
+          current: metadata.current || false,
+          description: asset.description || '',
+          achievements: [asset.description || ''],
+          skills: asset.tags || [],
+          relevanceScore: 0.5
+        };
+      });
+
+      return experiences.length > 0 ? experiences : this.getMockExperiences();
+    } catch (error) {
+      console.error('Error fetching user experiences:', error);
+      return this.getMockExperiences();
+    }
   }
 
   /**
-   * Fetch GitHub projects
+   * Fetch GitHub projects from selected_repositories table (GitHub integration)
    */
   private async fetchGitHubProjects(userId: string): Promise<GitHubProject[]> {
-    // For now, return mock data. In production, this would sync from GitHub API
-    return this.getMockGitHubProjects();
+    try {
+      // First try to get explicitly selected repositories
+      const { data: selectedData, error: selectedError } = await supabase
+        .from('selected_repositories')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_selected', true)
+        .order('stars_count', { ascending: false });
+
+      if (selectedError) throw selectedError;
+
+      if (selectedData && selectedData.length > 0) {
+        // Use selected repositories with user descriptions
+        const projects: GitHubProject[] = selectedData.map(repo => ({
+          id: repo.github_repo_id.toString(),
+          name: repo.repo_name,
+          description: repo.user_description || repo.repo_description || '',
+          url: repo.repo_url,
+          language: repo.programming_languages?.[0] || '',
+          stars: repo.stars_count || 0,
+          forks: repo.forks_count || 0,
+          topics: repo.topics || [],
+          technologies: repo.programming_languages || [],
+          relevanceScore: 0.8, // Higher relevance for manually selected repos
+          lastUpdated: repo.updated_at || new Date().toISOString(),
+          isPrivate: repo.is_private || false
+        }));
+
+        console.log(`Found ${projects.length} selected GitHub repositories for CV`);
+        return projects;
+      }
+
+      // If no selected repos, try to get any repositories from the table
+      const { data: allData, error: allError } = await supabase
+        .from('selected_repositories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('stars_count', { ascending: false })
+        .limit(5); // Take top 5 by stars
+
+      if (allError) throw allError;
+
+      if (allData && allData.length > 0) {
+        const projects: GitHubProject[] = allData.map(repo => ({
+          id: repo.github_repo_id.toString(),
+          name: repo.repo_name,
+          description: repo.user_description || repo.repo_description || '',
+          url: repo.repo_url,
+          language: repo.programming_languages?.[0] || '',
+          stars: repo.stars_count || 0,
+          forks: repo.forks_count || 0,
+          topics: repo.topics || [],
+          technologies: repo.programming_languages || [],
+          relevanceScore: 0.6, // Lower relevance for auto-selected repos
+          lastUpdated: repo.updated_at || new Date().toISOString(),
+          isPrivate: repo.is_private || false
+        }));
+
+        console.log(`No selected repos found, using top ${projects.length} GitHub repositories for CV`);
+        return projects;
+      }
+
+      // If no GitHub repositories at all, try cv_assets as fallback
+      const { data: assetData, error: assetError } = await supabase
+        .from('cv_assets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('asset_type', 'repository')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!assetError && assetData && assetData.length > 0) {
+        const projects: GitHubProject[] = assetData.map(asset => {
+          const metadata = asset.metadata as any || {};
+          return {
+            id: metadata.github_id?.toString() || asset.id,
+            name: asset.title,
+            description: asset.description || '',
+            url: asset.external_url || '',
+            language: metadata.language || '',
+            stars: metadata.stars || 0,
+            forks: metadata.forks || 0,
+            topics: metadata.topics || [],
+            technologies: asset.tags?.filter(tag => tag !== 'github') || [],
+            relevanceScore: 0.5,
+            lastUpdated: metadata.updated_at || asset.updated_at || new Date().toISOString(),
+            isPrivate: metadata.is_private || false
+          };
+        });
+
+        console.log(`Using ${projects.length} repositories from cv_assets for CV`);
+        return projects;
+      }
+
+      console.log('No real GitHub repositories found, using mock data');
+      return this.getMockGitHubProjects();
+    } catch (error) {
+      console.error('Error fetching GitHub projects:', error);
+      return this.getMockGitHubProjects();
+    }
   }
 
   /**
-   * Fetch academic publications
+   * Fetch academic publications from publications table
    */
   private async fetchPublications(userId: string): Promise<Publication[]> {
-    // For now, return mock data. In production, this would sync from Google Scholar
-    return this.getMockPublications();
+    try {
+      // First try to get explicitly selected publications
+      const { data: selectedData, error: selectedError } = await supabase
+        .from('publications')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('selected_for_cv', true)
+        .order('publication_year', { ascending: false });
+
+      if (selectedError) throw selectedError;
+
+      if (selectedData && selectedData.length > 0) {
+        const publications: Publication[] = selectedData.map(pub => ({
+          id: pub.id,
+          title: pub.title,
+          authors: pub.authors || [],
+          venue: pub.venue || '',
+          year: pub.publication_year || new Date().getFullYear(),
+          url: pub.url || '',
+          abstract: pub.abstract || '',
+          citation: pub.citation || '',
+          citationCount: pub.citations || 0,
+          keywords: pub.keywords || [],
+          relevanceScore: 0.8 // Higher relevance for manually selected publications
+        }));
+
+        console.log(`Found ${publications.length} selected publications for CV`);
+        return publications;
+      }
+
+      // If no selected publications, try to get any publications from the table
+      const { data: allData, error: allError } = await supabase
+        .from('publications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('publication_year', { ascending: false })
+        .limit(5); // Take top 5 most recent
+
+      if (allError) throw allError;
+
+      if (allData && allData.length > 0) {
+        const publications: Publication[] = allData.map(pub => ({
+          id: pub.id,
+          title: pub.title,
+          authors: pub.authors || [],
+          venue: pub.venue || '',
+          year: pub.publication_year || new Date().getFullYear(),
+          url: pub.url || '',
+          abstract: pub.abstract || '',
+          citation: pub.citation || '',
+          citationCount: pub.citations || 0,
+          keywords: pub.keywords || [],
+          relevanceScore: 0.6 // Lower relevance for auto-selected publications
+        }));
+
+        console.log(`No selected publications found, using top ${publications.length} recent publications for CV`);
+        return publications;
+      }
+
+      // If no publications at all, try cv_assets as fallback
+      const { data: assetData, error: assetError } = await supabase
+        .from('cv_assets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('asset_type', 'publication')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!assetError && assetData && assetData.length > 0) {
+        const publications: Publication[] = assetData.map(asset => {
+          const metadata = asset.metadata as any || {};
+          return {
+            id: asset.id,
+            title: asset.title,
+            authors: metadata.authors || [],
+            venue: metadata.venue || '',
+            year: metadata.year || new Date().getFullYear(),
+            url: asset.external_url || '',
+            abstract: asset.description || '',
+            citation: metadata.citation || '',
+            citationCount: metadata.citations || 0,
+            keywords: metadata.keywords || [],
+            relevanceScore: 0.5
+          };
+        });
+
+        console.log(`Using ${publications.length} publications from cv_assets for CV`);
+        return publications;
+      }
+
+      console.log('No real publications found, using mock data');
+      return this.getMockPublications();
+    } catch (error) {
+      console.error('Error fetching publications:', error);
+      return this.getMockPublications();
+    }
   }
 
   /**
-   * Fetch user skills
+   * Fetch user skills from user preferences
    */
   private async fetchUserSkills(userId: string): Promise<Skill[]> {
-    // For now, return mock data. In production, this would fetch from database
-    return this.getMockSkills();
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('skills')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+
+      const skillsArray = data?.skills || [];
+      const skills: Skill[] = skillsArray.map((skillName: string, index: number) => ({
+        id: `skill-${index}`,
+        name: skillName,
+        category: this.categorizeSkill(skillName),
+        proficiency: 'intermediate', // Default proficiency
+        relevanceScore: 0.5,
+        isHighlighted: false
+      }));
+
+      return skills.length > 0 ? skills : this.getMockSkills();
+    } catch (error) {
+      console.error('Error fetching user skills:', error);
+      return this.getMockSkills();
+    }
+  }
+
+  /**
+   * Helper method to categorize skills
+   */
+  private categorizeSkill(skillName: string): string {
+    const skill = skillName.toLowerCase();
+    
+    if (['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'c++', 'c#', 'php', 'ruby'].some(lang => skill.includes(lang))) {
+      return 'Programming Languages';
+    } else if (['react', 'vue', 'angular', 'svelte', 'next.js', 'nuxt', 'express', 'fastapi', 'django', 'flask'].some(fw => skill.includes(fw))) {
+      return 'Frameworks';
+    } else if (['aws', 'gcp', 'azure', 'docker', 'kubernetes', 'terraform', 'jenkins'].some(cloud => skill.includes(cloud))) {
+      return 'Cloud & DevOps';
+    } else if (['postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch'].some(db => skill.includes(db))) {
+      return 'Databases';
+    } else {
+      return 'Other';
+    }
   }
 
   /**
@@ -283,23 +609,35 @@ export class CVGenerationService {
     let itemCount = 0;
 
     // Score selected projects
-    cvData.selectedProjects.forEach(project => {
-      totalScore += project.relevanceScore || 0;
-      itemCount++;
-    });
+    if (Array.isArray(cvData.selectedProjects)) {
+      cvData.selectedProjects.forEach(project => {
+        if (project && typeof project.relevanceScore === 'number') {
+          totalScore += project.relevanceScore;
+          itemCount++;
+        }
+      });
+    }
 
     // Score selected publications
-    cvData.selectedPublications.forEach(pub => {
-      totalScore += pub.relevanceScore || 0;
-      itemCount++;
-    });
+    if (Array.isArray(cvData.selectedPublications)) {
+      cvData.selectedPublications.forEach(pub => {
+        if (pub && typeof pub.relevanceScore === 'number') {
+          totalScore += pub.relevanceScore;
+          itemCount++;
+        }
+      });
+    }
 
     // Score highlighted skills
-    const highlightedSkills = cvData.skills.all.filter(skill => skill.isHighlighted);
-    highlightedSkills.forEach(skill => {
-      totalScore += skill.relevanceScore || 0;
-      itemCount++;
-    });
+    if (cvData.skills && Array.isArray(cvData.skills.all)) {
+      const highlightedSkills = cvData.skills.all.filter(skill => skill && skill.isHighlighted);
+      highlightedSkills.forEach(skill => {
+        if (skill && typeof skill.relevanceScore === 'number') {
+          totalScore += skill.relevanceScore;
+          itemCount++;
+        }
+      });
+    }
 
     return itemCount > 0 ? totalScore / itemCount : 0.5;
   }
