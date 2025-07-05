@@ -114,6 +114,8 @@ class WebSearchJobService:
         """
         
         if progress_callback:
+
+
             progress_callback({"current_operation": f"Starting multi-company search for {len(companies)} companies"})
         
         # Use semaphore to limit concurrent requests

@@ -29,6 +29,7 @@ interface Company {
   industry: string | null;
   size_category: string | null;
   website_url: string | null;
+  careers_url: string | null;
   headquarters: string | null;
   founded_year: number | null;
 }
@@ -58,6 +59,7 @@ export const CompanyDirectory = () => {
     name: '',
     description: '',
     website_url: '',
+    careers_url: '',
     industry: '',
     size_category: '',
     headquarters: '',
@@ -127,8 +129,20 @@ export const CompanyDirectory = () => {
       industry: 'Fintech',
       size_category: 'large',
       website_url: 'https://n26.com',
+      careers_url: 'https://n26.com/en/careers',
       headquarters: 'Berlin, Germany',
       founded_year: 2013
+    },
+    {
+      id: 'demo-finn',
+      name: 'FINN',
+      description: 'Digital car subscription service offering flexible access to vehicles without traditional ownership',
+      industry: 'Mobility Tech',
+      size_category: 'medium',
+      website_url: 'https://finn.auto',
+      careers_url: 'https://jobs.lever.co/finn',
+      headquarters: 'Munich, Germany',
+      founded_year: 2019
     },
     {
       id: 'demo-0',
@@ -137,6 +151,7 @@ export const CompanyDirectory = () => {
       industry: 'Fintech',
       size_category: 'large',
       website_url: 'https://traderepublic.com',
+      careers_url: 'https://traderepublic.com/en-de/about#career',
       headquarters: 'Berlin, Germany',
       founded_year: 2015
     },
@@ -520,10 +535,10 @@ export const CompanyDirectory = () => {
       } else {
         // Check if this is a search failure vs no matching jobs
         if (result.total_jobs === 0) {
-          toast.error("Job search failed", {
+          toast.info("No job listings found", {
             description: result.career_page_url ? 
-              `Unable to find job listings on ${company.name}'s career page. The site may use dynamic loading or require authentication.` :
-              `Could not find or access ${company.name}'s career page. Please verify the company website.`
+              `${company.name} may not have active job postings at the moment, or their careers page requires manual browsing. Try checking their website directly.` :
+              `Could not locate ${company.name}'s careers page. They may not be actively hiring or use external recruitment platforms.`
           });
         } else {
           toast.warning("No suitable jobs found", {
@@ -596,7 +611,8 @@ export const CompanyDirectory = () => {
       'Cybersecurity': '🔒',
       'Education': '📚',
       'Retail Tech': '🛒',
-      'Gaming': '🎮'
+      'Gaming': '🎮',
+      'Mobility Tech': '🚗'
     };
     return industry ? industryMap[industry] || '🏢' : '🏢';
   };
@@ -895,6 +911,7 @@ export const CompanyDirectory = () => {
                     <SelectItem value="Education" className="text-white hover:bg-gray-700">Education</SelectItem>
                     <SelectItem value="Retail Tech" className="text-white hover:bg-gray-700">Retail Tech</SelectItem>
                     <SelectItem value="Gaming" className="text-white hover:bg-gray-700">Gaming</SelectItem>
+                    <SelectItem value="Mobility Tech" className="text-white hover:bg-gray-700">Mobility Tech</SelectItem>
                     <SelectItem value="Other" className="text-white hover:bg-gray-700">Other</SelectItem>
                   </SelectContent>
                 </Select>

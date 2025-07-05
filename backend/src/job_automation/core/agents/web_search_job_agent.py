@@ -49,11 +49,23 @@ class WebSearchJobAgent:
             # Step 1: Find careers page
             careers_url = await self.client.find_company_careers_page(company_name, company_website)
             
-            # Step 2: Search for jobs using the two-step approach
-            job_results = await self.client.search_web(
-                query=f"{company_name} {' '.join(user_skills[:3])}", 
-                company_website=company_website, 
-                num_results=max_jobs
+            if not careers_url:
+                logger.warning(f"❌ No valid careers page found for {company_name}")
+                return {
+                    'success': False,
+                    'error': f'No valid careers page found for {company_name}',
+                    'company': company_name,
+                    'total_jobs': 0,
+                    'matched_jobs': []
+                }
+            
+            # Step 2: Search for jobs directly on the careers page
+            job_results = await self.client.search_jobs_on_careers_page(
+                careers_url=careers_url,
+                company_name=company_name,
+                user_skills=user_skills, 
+                num_results=max_jobs,
+                company_website=company_website
             )
             
             # Step 3: Analyze job matches

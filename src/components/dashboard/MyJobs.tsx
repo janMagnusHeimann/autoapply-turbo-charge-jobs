@@ -495,6 +495,7 @@ export const MyJobs = () => {
                             variant="outline"
                             size="sm"
                             className="text-gray-400 border-gray-600 hover:bg-gray-800 hover:text-white"
+                            onClick={() => window.open(job.applicationUrl, '_blank', 'noopener,noreferrer')}
                           >
                             <Eye className="w-4 h-4 mr-2" />
                             View Job
