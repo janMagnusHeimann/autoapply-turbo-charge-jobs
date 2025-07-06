@@ -360,14 +360,16 @@ export class JobAnalysisService {
       let relevanceScore = 0;
       
       // Check technologies used
-      experience.technologies.forEach(tech => {
+      const technologies = experience.technologies || [];
+      technologies.forEach(tech => {
         if (requirements.requiredSkills.includes(tech)) {
           relevanceScore += (skillWeights[tech] || 0.5) * 0.3;
         }
       });
 
       // Check achievement descriptions for keywords
-      const allText = experience.achievements.join(' ').toLowerCase();
+      const achievements = experience.achievements || [];
+      const allText = achievements.join(' ').toLowerCase();
       requirements.keywords.forEach(keyword => {
         if (allText.includes(keyword.toLowerCase())) {
           relevanceScore += 0.1;
@@ -375,7 +377,7 @@ export class JobAnalysisService {
       });
 
       // Reorder achievements to prioritize relevant ones
-      const scoredAchievements = experience.achievements.map(achievement => {
+      const scoredAchievements = achievements.map(achievement => {
         let achScore = 0;
         const achText = achievement.toLowerCase();
         

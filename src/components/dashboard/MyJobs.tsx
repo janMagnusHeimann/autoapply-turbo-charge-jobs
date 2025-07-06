@@ -324,19 +324,37 @@ export const MyJobs = () => {
         cvGeneration.id
       );
 
-      toast.success(
-        `🎉 CV Generated Successfully!`, 
-        {
-          description: `Tailored CV created for ${job.title} at ${job.company}`,
-          action: {
-            label: "View CV",
-            onClick: () => {
-              setSelectedCvGeneration(cvGeneration);
-              setCvPreviewOpen(true);
+      // Check for missing data warnings
+      const warnings = cvGeneration.optimizationMetadata.missingDataWarnings;
+      if (warnings && warnings.length > 0) {
+        toast.warning(
+          `CV Generated with Missing Data`, 
+          {
+            description: `CV created but some data is missing:\n• ${warnings.slice(0, 2).join('\n• ')}${warnings.length > 2 ? '\n• ...' : ''}`,
+            action: {
+              label: "View CV",
+              onClick: () => {
+                setSelectedCvGeneration(cvGeneration);
+                setCvPreviewOpen(true);
+              }
             }
           }
-        }
-      );
+        );
+      } else {
+        toast.success(
+          `🎉 CV Generated Successfully!`, 
+          {
+            description: `Tailored CV created for ${job.title} at ${job.company}`,
+            action: {
+              label: "View CV",
+              onClick: () => {
+                setSelectedCvGeneration(cvGeneration);
+                setCvPreviewOpen(true);
+              }
+            }
+          }
+        );
+      }
 
     } catch (error) {
       console.error('Error generating CV:', error);

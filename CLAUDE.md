@@ -19,9 +19,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `uv run pytest` - Run backend tests (from backend/)
 - `uv run pytest tests/test_services.py -v` - Run specific test files
 
+### CV Processing API (Separate Service)
+- `npm run backend:cv` - Start dedicated CV processing API (port 8001)
+- `cd backend/cv_api && pip install -r requirements.txt` - Install CV API dependencies
+- CV API serves on port 8001 with endpoints: `/process`, `/health`, `/status`
+
 ### Full Stack Development
 - `npm run dev:full` - Start both frontend and backend
 - `npm run dev:unified` - Start unified system (frontend + unified backend)
+- `npm run dev:cv` - Start frontend + CV API only
+- `npm run dev:complete` - Start frontend + job discovery backend + CV API (all services)
 - `docker-compose -f docker-compose.dev.yml up` - Start with Docker
 
 ### Database Operations

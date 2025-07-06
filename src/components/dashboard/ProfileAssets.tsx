@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X } from "lucide-react";
+import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X, Upload, FileText, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { GitHubService } from "@/services/githubService";
+import { CVParsingService } from "@/services/cvParsingService";
 import { SelectiveGitHubIntegration } from "./SelectiveGitHubIntegration";
 import { PublicationsIntegration } from "./PublicationsIntegration";
 import { useToast } from "@/hooks/use-toast";
@@ -90,6 +91,12 @@ export const ProfileAssets = () => {
   const [assets, setAssets] = useState<CVAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [debugSyncing, setDebugSyncing] = useState(false);
+  
+  // CV Upload states
+  const [showCVUpload, setShowCVUpload] = useState(false);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvParseResult, setCvParseResult] = useState<string>('');
   
   // Form states
   const [showExperienceForm, setShowExperienceForm] = useState(false);
@@ -691,6 +698,111 @@ export const ProfileAssets = () => {
     }
   };
 
+  const handleCVUpload = async () => {
+    if (!user || !cvFile) return;
+
+    try {
+      setCvUploading(true);
+      setCvParseResult('');
+      
+      console.log('📄 Starting CV upload and parsing...');
+      
+      // Process CV using backend service with proper PDF extraction
+      const result = await CVParsingService.processCV(user.id, cvFile);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to process CV');
+      }
+      
+      console.log('✅ CV processed successfully via backend');
+      
+      // Force refresh the assets and social links with delay to ensure DB updates are complete
+      console.log('🔄 Refreshing component data...');
+      setLoading(true);
+      
+      // Add small delay to ensure backend has finished writing to database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await Promise.all([
+        fetchAssets(),
+        fetchSocialLinks()
+      ]);
+      setLoading(false);
+      
+      // Show success message based on backend response
+      const backendData = result.data?.data?.extracted_data || {};
+      const assetsCreated = result.data?.data?.assets_created || 0;
+      const experienceCount = backendData.experience?.length || 0;
+      const educationCount = backendData.education?.length || 0;
+      const certificationCount = backendData.certifications?.length || 0;
+      const awardsCount = backendData.awards?.length || 0;
+      
+      let summary = '';
+      if (assetsCreated > 0) {
+        summary = `Successfully imported your CV! Added ${experienceCount} work experiences, ${educationCount} education entries, ${certificationCount} certifications, and ${awardsCount} awards. Check the Experience and Education tabs to review the imported data.`;
+      } else {
+        summary = `CV uploaded but no data was automatically extracted. This can happen with certain PDF formats. You can manually add your experience and education using the forms in the respective tabs.`;
+      }
+      
+      setCvParseResult(summary);
+      
+      toast({
+        title: "CV Import Successful!",
+        description: "Your profile has been updated. Check the Experience, Education, and Other tabs to review the imported information.",
+        duration: 5000,
+      });
+      
+      // Reset form
+      setCvFile(null);
+      
+    } catch (error) {
+      console.error('CV upload error:', error);
+      setCvParseResult(`Error: ${error instanceof Error ? error.message : 'Failed to process CV'}`);
+      
+      toast({
+        title: "CV Import Failed",
+        description: error instanceof Error ? error.message : 'Failed to process CV file',
+        variant: "destructive",
+      });
+    } finally {
+      setCvUploading(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
+      const allowedExtensions = ['.pdf', '.txt', '.md'];
+      
+      const isValidType = allowedTypes.includes(file.type) || 
+                         allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+      
+      if (!isValidType) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please upload a PDF or text file (.pdf, .txt, .md)",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Please upload a file smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setCvFile(file);
+      setCvParseResult('');
+    }
+  };
+
   const experiences = assets.filter(asset => asset.asset_type === 'experience');
   const education = assets.filter(asset => asset.asset_type === 'education');
   const repositories = assets.filter(asset => asset.asset_type === 'repository');
@@ -743,8 +855,11 @@ export const ProfileAssets = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="social" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 bg-gray-800">
+      <Tabs defaultValue="cv-upload" className="w-full">
+        <TabsList className="grid w-full grid-cols-7 bg-gray-800">
+          <TabsTrigger value="cv-upload" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
+            Import CV
+          </TabsTrigger>
           <TabsTrigger value="social" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Social Links
           </TabsTrigger>
@@ -764,6 +879,175 @@ export const ProfileAssets = () => {
             Publications
           </TabsTrigger>
         </TabsList>
+
+        {/* CV Upload Tab */}
+        <TabsContent value="cv-upload" className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Import Existing CV</h2>
+            <p className="text-gray-400">Upload your existing CV to automatically populate your profile with experience, education, and other information</p>
+          </div>
+
+          {/* Upload Area */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Upload className="w-5 h-5 text-white" />
+                </div>
+                Upload Your CV
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* File Upload */}
+              <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium text-white">Choose your CV file</h3>
+                  <p className="text-gray-400">Upload a PDF or text file of your existing CV</p>
+                </div>
+                <div className="mt-4">
+                  <input
+                    id="cv-file-upload"
+                    type="file"
+                    accept=".pdf,.txt,.md"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('cv-file-upload')?.click()}
+                    className="bg-gray-800 border-gray-600 text-white hover:bg-gray-700"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Select File
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Supported formats: PDF, TXT, MD (max 10MB)
+                </p>
+              </div>
+
+              {/* Selected File */}
+              {cvFile && (
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-blue-400" />
+                      <div>
+                        <p className="text-white font-medium">{cvFile.name}</p>
+                        <p className="text-gray-400 text-sm">
+                          {(cvFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCvFile(null)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Button */}
+              {cvFile && (
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleCVUpload}
+                    disabled={cvUploading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {cvUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Processing CV...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import CV Data
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Result Display */}
+              {cvParseResult && (
+                <div className={`p-4 rounded-lg ${cvParseResult.startsWith('Error') ? 'bg-red-900/20 border border-red-800/50' : 'bg-green-900/20 border border-green-800/50'}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${cvParseResult.startsWith('Error') ? 'bg-red-600' : 'bg-green-600'}`}>
+                      {cvParseResult.startsWith('Error') ? (
+                        <AlertCircle className="w-3 h-3 text-white" />
+                      ) : (
+                        <Upload className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className={`font-medium mb-1 ${cvParseResult.startsWith('Error') ? 'text-red-200' : 'text-green-200'}`}>
+                        {cvParseResult.startsWith('Error') ? 'Import Failed' : 'Import Successful'}
+                      </h3>
+                      <p className={`text-sm ${cvParseResult.startsWith('Error') ? 'text-red-300' : 'text-green-300'}`}>
+                        {cvParseResult}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Instructions */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">How it works</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">1</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Upload your CV</h4>
+                    <p className="text-gray-400 text-sm">Choose a PDF or text file containing your current CV or resume</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">2</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">AI extracts your information</h4>
+                    <p className="text-gray-400 text-sm">Our system reads your CV and extracts work experience, education, skills, and other details</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">3</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Review and edit</h4>
+                    <p className="text-gray-400 text-sm">Check the imported information in the other tabs and make any necessary edits</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertCircle className="w-3 h-3 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-orange-200 font-medium">Note about GitHub and Publications</h4>
+                    <p className="text-orange-300 text-sm">This import process will not override your connected GitHub repositories or Google Scholar publications. Those remain managed separately in their respective tabs.</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Social Links Tab */}
         <TabsContent value="social" className="space-y-6">

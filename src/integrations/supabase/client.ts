@@ -27,9 +27,16 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 });
 
 // Service role client for development bypass (bypasses RLS)
+console.log('Supabase client setup:', {
+  BYPASS_AUTH,
+  SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET'
+});
+
 export const supabaseServiceRole = BYPASS_AUTH && SUPABASE_SERVICE_ROLE_KEY 
   ? createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       db: { schema: 'public' },
       auth: { persistSession: false }
     })
   : null;
+
+console.log('Service role client created:', !!supabaseServiceRole);

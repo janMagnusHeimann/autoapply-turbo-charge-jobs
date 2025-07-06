@@ -9,6 +9,7 @@ import type {
   CVTemplate, 
   UserProfile, 
   WorkExperience, 
+  Education,
   GitHubProject, 
   Publication, 
   Skill,
@@ -31,7 +32,11 @@ export class CVGenerationService {
     templateId: string = 'technical'
   ): Promise<CVGeneration> {
     try {
-      console.log('Starting CV generation for user:', userId);
+      console.log('CV Generation: Starting CV generation for user:', userId);
+      console.log('CV Generation: Job opportunity:', jobOpportunity);
+      
+      // Track missing data for user feedback
+      const missingDataWarnings: string[] = [];
       
       // 1. Fetch user profile and data with error handling
       const userProfile = await this.fetchUserProfile(userId);
@@ -40,14 +45,50 @@ export class CVGenerationService {
       const experiences = await this.fetchUserExperiences(userId);
       console.log('Experiences fetched:', experiences?.length || 0);
       
+      // Ensure experiences have required properties
+      const validExperiences = experiences.map(exp => ({
+        ...exp,
+        technologies: exp.technologies || exp.skills || [],
+        achievements: exp.achievements || (exp.description ? [exp.description] : []),
+        skills: exp.skills || []
+      }));
+      
       const projects = await this.fetchGitHubProjects(userId);
       console.log('Projects fetched:', projects?.length || 0);
+      if (projects.length === 0) {
+        missingDataWarnings.push('No GitHub projects found. Connect your GitHub account or add projects manually to showcase your work.');
+      }
       
       const publications = await this.fetchPublications(userId);
       console.log('Publications fetched:', publications?.length || 0);
+      if (publications.length === 0) {
+        missingDataWarnings.push('No publications found. Connect your Google Scholar account or add publications manually to highlight your research.');
+      }
       
       const skills = await this.fetchUserSkills(userId);
       console.log('Skills fetched:', skills?.length || 0);
+      if (skills.length === 0) {
+        missingDataWarnings.push('No skills found. Update your preferences to include your technical skills.');
+      }
+      
+      const education = await this.fetchUserEducation(userId);
+      console.log('Education fetched:', education?.length || 0);
+      if (education.length === 0) {
+        missingDataWarnings.push('No education found. Add your educational background to strengthen your CV.');
+      }
+      
+      if (validExperiences.length === 0) {
+        missingDataWarnings.push('No work experience found. Add your professional experience to strengthen your CV.');
+      }
+      
+      // Check for incomplete profile
+      if (!userProfile.professionalSummary || userProfile.professionalSummary.includes('Experienced professional with expertise')) {
+        missingDataWarnings.push('Professional summary is generic. Update your profile with a personalized summary.');
+      }
+      
+      if (!userProfile.phone && !userProfile.linkedinUrl && !userProfile.githubUrl) {
+        missingDataWarnings.push('Contact information is incomplete. Add phone number, LinkedIn, or GitHub URL to your profile.');
+      }
 
       // 2. Analyze job requirements using AI
       const jobAnalysis = await jobAnalysisService.analyzeJobDescription(
@@ -59,7 +100,8 @@ export class CVGenerationService {
       // 3. Optimize content selection using AI
       const optimizedContent = await this.optimizeContentForJob(
         userProfile,
-        experiences,
+        validExperiences,
+        education,
         projects,
         publications,
         skills,
@@ -89,7 +131,8 @@ export class CVGenerationService {
           selectedPublicationsCount: optimizedContent.selectedPublications.length,
           highlightedSkillsCount: optimizedContent.skills.highlighted.length,
           relevanceScore: this.calculateRelevanceScore(optimizedContent, jobAnalysis),
-          customizations: optimizedContent.optimizationNotes
+          customizations: optimizedContent.optimizationNotes,
+          missingDataWarnings: missingDataWarnings
         },
         status: 'ready',
         createdAt: new Date().toISOString(),
@@ -98,11 +141,26 @@ export class CVGenerationService {
 
       // 8. Save to database (if available)
       await this.saveCVGeneration(cvGeneration);
+      
+      // 9. Log warnings for missing data (these will be shown to user via metadata)
+      if (missingDataWarnings.length > 0) {
+        console.warn('CV Generation completed with missing data:', missingDataWarnings);
+      }
 
       return cvGeneration;
 
     } catch (error) {
       console.error('Error generating CV:', error);
+      
+      // Check if error is due to insufficient data
+      if (missingDataWarnings && missingDataWarnings.length > 0) {
+        const missingDataError = new Error(
+          `CV generation completed but with limited data. To improve your CV, please:\n\n${missingDataWarnings.map(w => `• ${w}`).join('\n')}`
+        );
+        missingDataError.name = 'InsufficientDataError';
+        throw missingDataError;
+      }
+      
       throw new Error(`CV generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -113,6 +171,7 @@ export class CVGenerationService {
   private async optimizeContentForJob(
     userProfile: UserProfile,
     experiences: WorkExperience[],
+    education: Education[],
     projects: GitHubProject[],
     publications: Publication[],
     skills: Skill[],
@@ -205,6 +264,7 @@ export class CVGenerationService {
     return {
       profile: userProfile,
       experiences: optimizedExperiences,
+      education: education || [],
       selectedProjects,
       selectedPublications,
       skills: {
@@ -234,17 +294,30 @@ export class CVGenerationService {
    * Upload PDF to storage service
    */
   private async uploadPDF(pdfBlob: Blob, userId: string, jobId: string): Promise<string> {
+    // In development mode or if storage fails, use blob URL for immediate functionality
+    if (import.meta.env.DEV) {
+      const dataUrl = URL.createObjectURL(pdfBlob);
+      console.log('Development mode: Using blob URL for PDF:', dataUrl);
+      return dataUrl;
+    }
+
     try {
-      const fileName = `cv-${userId}-${jobId}-${Date.now()}.pdf`;
+      // Clean the jobId to make it a valid filename
+      const cleanJobId = jobId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const fileName = `cv-${userId}-${cleanJobId}-${Date.now()}.pdf`;
+      
       const { data, error } = await supabase.storage
         .from('cv-pdfs')
         .upload(fileName, pdfBlob, {
           contentType: 'application/pdf',
-          upsert: false
+          upsert: true  // Allow overwrite
         });
 
       if (error) {
-        throw new Error(`Storage upload failed: ${error.message}`);
+        console.warn('Storage upload failed, using fallback:', error.message);
+        // Fallback: return a blob URL
+        const dataUrl = URL.createObjectURL(pdfBlob);
+        return dataUrl;
       }
 
       // Get public URL
@@ -252,13 +325,13 @@ export class CVGenerationService {
         .from('cv-pdfs')
         .getPublicUrl(fileName);
 
+      console.log('PDF uploaded successfully to storage');
       return urlData.publicUrl;
 
     } catch (error) {
-      console.error('PDF upload error:', error);
-      // Fallback: return a data URL for demo purposes
+      console.warn('PDF upload error, using fallback:', error);
+      // Fallback: return a blob URL for immediate functionality
       const dataUrl = URL.createObjectURL(pdfBlob);
-      console.log('Using data URL fallback for PDF:', dataUrl);
       return dataUrl;
     }
   }
@@ -268,30 +341,161 @@ export class CVGenerationService {
    */
   private async fetchUserProfile(userId: string): Promise<UserProfile> {
     try {
+      console.log('CV Generation: Fetching user profile for userId:', userId);
+      
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('CV Generation: User profile not found, creating basic profile with saved social links');
+          // User profile doesn't exist, try to create one with social links from localStorage
+          return await this.createBasicUserProfile(userId);
+        }
+        console.error('Error fetching user profile from database:', error);
+        throw error;
+      }
 
-      return {
+      console.log('CV Generation: User profile data found:', data);
+
+      const userProfile = {
         id: data.user_id,
-        name: data.full_name || 'User',
-        email: data.email,
+        name: data.full_name || 'Professional User',
+        email: data.email || 'user@example.com',
         phone: data.phone || undefined,
-        location: data.location || 'Not specified',
+        location: data.location || 'Global',
         linkedinUrl: data.linkedin_url || undefined,
         portfolioUrl: data.portfolio_url || undefined,
         githubUrl: data.github_url || undefined,
-        professionalSummary: data.professional_summary || 'Professional software developer with experience in modern technologies.',
-        title: data.current_title || 'Software Developer'
+        twitterUrl: data.twitter_url || undefined,
+        mediumUrl: data.medium_url || undefined,
+        blogUrl: data.blog_url || undefined,
+        youtubeUrl: data.youtube_url || undefined,
+        behanceUrl: data.behance_url || undefined,
+        dribbbleUrl: data.dribbble_url || undefined,
+        stackoverflowUrl: data.stackoverflow_url || undefined,
+        professionalSummary: data.professional_summary || 'Experienced professional with expertise in modern technologies and a proven track record of delivering high-quality solutions.',
+        title: data.current_title || 'Software Professional'
+      };
+
+      console.log('CV Generation: Using real user profile data:', userProfile);
+      return userProfile;
+    } catch (error) {
+      console.error('CV Generation: Error fetching user profile, creating basic profile:', error);
+      // Create basic profile instead of using mock data
+      return await this.createBasicUserProfile(userId);
+    }
+  }
+
+
+
+  /**
+   * Create a basic user profile if one doesn't exist, incorporating saved social links
+   */
+  private async createBasicUserProfile(userId: string): Promise<UserProfile> {
+    try {
+      // Try to get saved social links from localStorage
+      const savedSocialLinks = localStorage.getItem(`socialLinks_${userId}`);
+      const socialLinks = savedSocialLinks ? JSON.parse(savedSocialLinks) : {};
+      
+      console.log('CV Generation: Found saved social links:', socialLinks);
+
+      // Create basic user profile with social links
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: userId,
+          email: 'user@example.com', // Will be updated from auth context
+          full_name: 'Professional User',
+          phone: null,
+          location: 'Global',
+          linkedin_url: socialLinks.linkedin || null,
+          github_url: socialLinks.github || null,
+          portfolio_url: socialLinks.portfolio || null,
+          twitter_url: socialLinks.x || null,
+          medium_url: socialLinks.medium || null,
+          blog_url: socialLinks.blog || null,
+          youtube_url: socialLinks.youtube || null,
+          behance_url: socialLinks.behance || null,
+          dribbble_url: socialLinks.dribbble || null,
+          stackoverflow_url: socialLinks.stackoverflow || null,
+          professional_summary: 'Experienced professional with expertise in modern technologies and a proven track record of delivering high-quality solutions.',
+          current_title: 'Software Professional',
+          years_of_experience: null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('CV Generation: Error creating user profile:', error);
+        // Return a basic profile without saving to database
+        return {
+          id: userId,
+          name: 'Professional User',
+          email: 'user@example.com',
+          phone: undefined,
+          location: 'Global',
+          linkedinUrl: socialLinks.linkedin || undefined,
+          portfolioUrl: socialLinks.portfolio || undefined,
+          githubUrl: socialLinks.github || undefined,
+          twitterUrl: socialLinks.x || undefined,
+          mediumUrl: socialLinks.medium || undefined,
+          blogUrl: socialLinks.blog || undefined,
+          youtubeUrl: socialLinks.youtube || undefined,
+          behanceUrl: socialLinks.behance || undefined,
+          dribbbleUrl: socialLinks.dribbble || undefined,
+          stackoverflowUrl: socialLinks.stackoverflow || undefined,
+          professionalSummary: 'Experienced professional with expertise in modern technologies and a proven track record of delivering high-quality solutions.',
+          title: 'Software Professional'
+        };
+      }
+
+      console.log('CV Generation: Created new user profile:', data);
+
+      return {
+        id: data.user_id,
+        name: data.full_name || 'Professional User',
+        email: data.email,
+        phone: data.phone || undefined,
+        location: data.location || 'Global',
+        linkedinUrl: data.linkedin_url || undefined,
+        portfolioUrl: data.portfolio_url || undefined,
+        githubUrl: data.github_url || undefined,
+        twitterUrl: data.twitter_url || undefined,
+        mediumUrl: data.medium_url || undefined,
+        blogUrl: data.blog_url || undefined,
+        youtubeUrl: data.youtube_url || undefined,
+        behanceUrl: data.behance_url || undefined,
+        dribbbleUrl: data.dribbble_url || undefined,
+        stackoverflowUrl: data.stackoverflow_url || undefined,
+        professionalSummary: data.professional_summary || 'Experienced professional with expertise in modern technologies and a proven track record of delivering high-quality solutions.',
+        title: data.current_title || 'Software Professional'
       };
     } catch (error) {
-      console.error('Error fetching user profile:', error);
-      // Fallback mock data
-      return this.getMockUserProfile();
+      console.error('CV Generation: Error creating basic user profile:', error);
+      // Return a basic profile without saving to database
+      return {
+        id: userId,
+        name: 'Professional User',
+        email: 'user@example.com',
+        phone: undefined,
+        location: 'Global',
+        linkedinUrl: undefined,
+        portfolioUrl: undefined,
+        githubUrl: undefined,
+        twitterUrl: undefined,
+        mediumUrl: undefined,
+        blogUrl: undefined,
+        youtubeUrl: undefined,
+        behanceUrl: undefined,
+        dribbbleUrl: undefined,
+        stackoverflowUrl: undefined,
+        professionalSummary: 'Experienced professional with expertise in modern technologies and a proven track record of delivering high-quality solutions.',
+        title: 'Software Professional'
+      };
     }
   }
 
@@ -300,6 +504,8 @@ export class CVGenerationService {
    */
   private async fetchUserExperiences(userId: string): Promise<WorkExperience[]> {
     try {
+      console.log('CV Generation: Fetching user experiences for userId:', userId);
+      
       const { data, error } = await supabase
         .from('cv_assets')
         .select('*')
@@ -307,7 +513,12 @@ export class CVGenerationService {
         .eq('asset_type', 'experience')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('CV Generation: Error fetching user experiences from database:', error);
+        throw error;
+      }
+
+      console.log('CV Generation: User experiences data found:', data);
 
       const experiences: WorkExperience[] = (data || []).map(asset => {
         const metadata = asset.metadata as any || {};
@@ -326,10 +537,16 @@ export class CVGenerationService {
         };
       });
 
-      return experiences.length > 0 ? experiences : this.getMockExperiences();
+      if (experiences.length > 0) {
+        console.log('CV Generation: Using real user experiences:', experiences);
+        return experiences;
+      } else {
+        console.log('CV Generation: No user experiences found, returning empty array');
+        return [];
+      }
     } catch (error) {
-      console.error('Error fetching user experiences:', error);
-      return this.getMockExperiences();
+      console.error('CV Generation: Error fetching user experiences:', error);
+      return [];
     }
   }
 
@@ -338,6 +555,8 @@ export class CVGenerationService {
    */
   private async fetchGitHubProjects(userId: string): Promise<GitHubProject[]> {
     try {
+      console.log('CV Generation: Fetching GitHub projects for userId:', userId);
+      
       // First try to get explicitly selected repositories
       const { data: selectedData, error: selectedError } = await supabase
         .from('selected_repositories')
@@ -346,7 +565,13 @@ export class CVGenerationService {
         .eq('is_selected', true)
         .order('stars_count', { ascending: false });
 
-      if (selectedError) throw selectedError;
+      if (selectedError) {
+        console.error('CV Generation: Error fetching selected repositories:', selectedError);
+        throw selectedError;
+      }
+      
+      console.log('CV Generation: Selected repositories query result:', selectedData?.length || 0, 'repositories');
+      console.log('CV Generation: Selected repositories data:', selectedData);
 
       if (selectedData && selectedData.length > 0) {
         // Use selected repositories with user descriptions
@@ -360,6 +585,7 @@ export class CVGenerationService {
           forks: repo.forks_count || 0,
           topics: repo.topics || [],
           technologies: repo.programming_languages || [],
+          impactStatement: repo.user_description ? `Custom achievement: ${repo.user_description}` : undefined,
           relevanceScore: 0.8, // Higher relevance for manually selected repos
           lastUpdated: repo.updated_at || new Date().toISOString(),
           isPrivate: repo.is_private || false
@@ -379,6 +605,9 @@ export class CVGenerationService {
 
       if (allError) throw allError;
 
+      console.log('CV Generation: All repositories query result:', allData?.length || 0, 'repositories');
+      console.log('CV Generation: All repositories data:', allData);
+
       if (allData && allData.length > 0) {
         const projects: GitHubProject[] = allData.map(repo => ({
           id: repo.github_repo_id.toString(),
@@ -390,6 +619,7 @@ export class CVGenerationService {
           forks: repo.forks_count || 0,
           topics: repo.topics || [],
           technologies: repo.programming_languages || [],
+          impactStatement: repo.user_description ? `Custom achievement: ${repo.user_description}` : undefined,
           relevanceScore: 0.6, // Lower relevance for auto-selected repos
           lastUpdated: repo.updated_at || new Date().toISOString(),
           isPrivate: repo.is_private || false
@@ -431,74 +661,148 @@ export class CVGenerationService {
         return projects;
       }
 
-      console.log('No real GitHub repositories found, using mock data');
-      return this.getMockGitHubProjects();
+      // Final fallback: check localStorage for development
+      console.log('CV Generation: Checking localStorage for GitHub repositories...');
+      const localData = localStorage.getItem('selected_repositories');
+      if (localData) {
+        try {
+          const savedRepos = JSON.parse(localData);
+          const selectedRepos = savedRepos.filter((repo: any) => repo.is_selected === true);
+          if (selectedRepos.length > 0) {
+            const projects: GitHubProject[] = selectedRepos.map((repo: any) => ({
+              id: repo.github_repo_id?.toString() || Math.random().toString(),
+              name: repo.repo_name || 'Repository',
+              description: repo.user_description || repo.repo_description || '',
+              url: repo.repo_url || '',
+              language: repo.programming_languages?.[0] || '',
+              stars: repo.stars_count || 0,
+              forks: repo.forks_count || 0,
+              topics: repo.topics || [],
+              technologies: repo.programming_languages || [],
+              impactStatement: repo.user_description ? `Custom achievement: ${repo.user_description}` : undefined,
+              relevanceScore: 0.8,
+              lastUpdated: repo.updated_at || new Date().toISOString(),
+              isPrivate: repo.is_private || false
+            }));
+            console.log(`CV Generation: Using ${projects.length} repositories from localStorage`);
+            return projects;
+          }
+        } catch (error) {
+          console.error('Error parsing localStorage GitHub data:', error);
+        }
+      }
+
+      console.log('CV Generation: No GitHub repositories found in database or localStorage');
+      return [];
     } catch (error) {
       console.error('Error fetching GitHub projects:', error);
-      return this.getMockGitHubProjects();
+      return [];
     }
   }
 
   /**
-   * Fetch academic publications from publications table
+   * Fetch academic publications from selected_publications table (Google Scholar integration)
    */
   private async fetchPublications(userId: string): Promise<Publication[]> {
     try {
-      // First try to get explicitly selected publications
+      console.log('CV Generation: Fetching user publications for userId:', userId);
+      
+      // In development mode, try localStorage first to get real data
+      if (import.meta.env.DEV) {
+        console.log('CV Generation: Development mode - checking localStorage first...');
+        const localData = localStorage.getItem('selected_publications');
+        if (localData) {
+          try {
+            const savedPubs = JSON.parse(localData);
+            const selectedPubs = savedPubs.filter((pub: any) => pub.is_selected === true);
+            if (selectedPubs.length > 0) {
+              const publications: Publication[] = selectedPubs.map((pub: any) => ({
+                id: pub.id || Math.random().toString(),
+                title: pub.title || 'Publication Title',
+                authors: pub.authors || [],
+                venue: pub.publication_venue || pub.venue || '',
+                year: pub.publication_year || pub.year || new Date().getFullYear(),
+                url: pub.scholar_link || pub.pdf_link || pub.url || '',
+                abstract: pub.user_description || pub.abstract || '',
+                citation: `${pub.title}. ${pub.authors?.join(', ')}. ${pub.publication_venue}, ${pub.publication_year}.`,
+                citationCount: pub.citation_count || 0,
+                keywords: pub.keywords || [],
+                relevanceScore: 0.8
+              }));
+              console.log(`CV Generation: Using ${publications.length} publications from localStorage (dev mode)`);
+              return publications;
+            }
+          } catch (error) {
+            console.error('Error parsing localStorage publications data:', error);
+          }
+        }
+      }
+      
+      // Get selected publications from Google Scholar integration
       const { data: selectedData, error: selectedError } = await supabase
-        .from('publications')
+        .from('selected_publications')
         .select('*')
         .eq('user_id', userId)
-        .eq('selected_for_cv', true)
+        .eq('is_selected', true)
         .order('publication_year', { ascending: false });
 
-      if (selectedError) throw selectedError;
+      if (selectedError) {
+        console.error('CV Generation: Error fetching selected publications:', selectedError);
+        // Don't throw error - fall through to localStorage fallback
+        console.log('CV Generation: Database query failed, will try localStorage fallback...');
+      }
 
-      if (selectedData && selectedData.length > 0) {
+      console.log('CV Generation: Selected publications data found:', selectedData);
+      console.log('CV Generation: Publication titles:', selectedData?.map(pub => pub.title));
+
+      if (!selectedError && selectedData && selectedData.length > 0) {
         const publications: Publication[] = selectedData.map(pub => ({
           id: pub.id,
           title: pub.title,
           authors: pub.authors || [],
-          venue: pub.venue || '',
+          venue: pub.publication_venue || '',
           year: pub.publication_year || new Date().getFullYear(),
-          url: pub.url || '',
+          url: pub.scholar_link || pub.pdf_link || '',
           abstract: pub.abstract || '',
-          citation: pub.citation || '',
-          citationCount: pub.citations || 0,
+          citation: `${pub.title}. ${pub.authors?.join(', ')}. ${pub.publication_venue}, ${pub.publication_year}.`,
+          citationCount: pub.citation_count || 0,
           keywords: pub.keywords || [],
           relevanceScore: 0.8 // Higher relevance for manually selected publications
         }));
 
-        console.log(`Found ${publications.length} selected publications for CV`);
+        console.log(`CV Generation: Using ${publications.length} selected publications for CV`);
         return publications;
       }
 
       // If no selected publications, try to get any publications from the table
       const { data: allData, error: allError } = await supabase
-        .from('publications')
+        .from('selected_publications')
         .select('*')
         .eq('user_id', userId)
         .order('publication_year', { ascending: false })
         .limit(5); // Take top 5 most recent
 
-      if (allError) throw allError;
+      if (allError) {
+        console.error('CV Generation: Error fetching all publications:', allError);
+        throw allError;
+      }
 
       if (allData && allData.length > 0) {
         const publications: Publication[] = allData.map(pub => ({
           id: pub.id,
           title: pub.title,
           authors: pub.authors || [],
-          venue: pub.venue || '',
+          venue: pub.publication_venue || '',
           year: pub.publication_year || new Date().getFullYear(),
-          url: pub.url || '',
+          url: pub.scholar_link || pub.pdf_link || '',
           abstract: pub.abstract || '',
-          citation: pub.citation || '',
-          citationCount: pub.citations || 0,
+          citation: `${pub.title}. ${pub.authors?.join(', ')}. ${pub.publication_venue}, ${pub.publication_year}.`,
+          citationCount: pub.citation_count || 0,
           keywords: pub.keywords || [],
           relevanceScore: 0.6 // Lower relevance for auto-selected publications
         }));
 
-        console.log(`No selected publications found, using top ${publications.length} recent publications for CV`);
+        console.log(`CV Generation: No selected publications found, using top ${publications.length} recent publications for CV`);
         return publications;
       }
 
@@ -529,15 +833,96 @@ export class CVGenerationService {
           };
         });
 
-        console.log(`Using ${publications.length} publications from cv_assets for CV`);
+        console.log(`CV Generation: Using ${publications.length} publications from cv_assets for CV`);
         return publications;
       }
 
-      console.log('No real publications found, using mock data');
-      return this.getMockPublications();
+      // Final fallback: check localStorage for development
+      console.log('CV Generation: Checking localStorage for publications...');
+      const localData = localStorage.getItem('selected_publications');
+      if (localData) {
+        try {
+          const savedPubs = JSON.parse(localData);
+          const selectedPubs = savedPubs.filter((pub: any) => pub.is_selected === true);
+          if (selectedPubs.length > 0) {
+            const publications: Publication[] = selectedPubs.map((pub: any) => ({
+              id: pub.id || Math.random().toString(),
+              title: pub.title || 'Publication Title',
+              authors: pub.authors || [],
+              venue: pub.publication_venue || pub.venue || '',
+              year: pub.publication_year || pub.year || new Date().getFullYear(),
+              url: pub.scholar_link || pub.pdf_link || pub.url || '',
+              abstract: pub.user_description || pub.abstract || '',
+              citation: `${pub.title}. ${pub.authors?.join(', ')}. ${pub.publication_venue}, ${pub.publication_year}.`,
+              citationCount: pub.citation_count || 0,
+              keywords: pub.keywords || [],
+              relevanceScore: 0.8
+            }));
+            console.log(`CV Generation: Using ${publications.length} publications from localStorage`);
+            return publications;
+          }
+        } catch (error) {
+          console.error('Error parsing localStorage publications data:', error);
+        }
+      }
+
+      console.log('CV Generation: No publications found in database or localStorage');
+      return [];
     } catch (error) {
-      console.error('Error fetching publications:', error);
-      return this.getMockPublications();
+      console.error('CV Generation: Error fetching publications:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch user education from cv_assets table
+   */
+  private async fetchUserEducation(userId: string): Promise<Education[]> {
+    try {
+      console.log('CV Generation: Fetching user education for userId:', userId);
+      
+      const { data, error } = await supabase
+        .from('cv_assets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('asset_type', 'education')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('CV Generation: Error fetching user education from database:', error);
+        throw error;
+      }
+
+      console.log('CV Generation: User education data found:', data);
+
+      const education: Education[] = (data || []).map(asset => {
+        const metadata = asset.metadata as any || {};
+        return {
+          id: asset.id,
+          institution: metadata.institution || asset.title || 'Institution',
+          degree: metadata.degree || asset.title || 'Degree',
+          field: metadata.field || asset.description || 'Field of Study',
+          location: metadata.location || 'Location',
+          startDate: metadata.startDate || '',
+          endDate: metadata.current ? undefined : (metadata.endDate || ''),
+          gpa: metadata.gpa || undefined,
+          honors: metadata.honors || [],
+          relevantCourses: asset.tags || [],
+          activities: metadata.activities || [],
+          relevanceScore: 0.5
+        };
+      });
+
+      if (education.length > 0) {
+        console.log('CV Generation: Using real user education:', education);
+        return education;
+      } else {
+        console.log('CV Generation: No user education found');
+        return [];
+      }
+    } catch (error) {
+      console.error('CV Generation: Error fetching user education:', error);
+      return [];
     }
   }
 
@@ -564,10 +949,10 @@ export class CVGenerationService {
         isHighlighted: false
       }));
 
-      return skills.length > 0 ? skills : this.getMockSkills();
+      return skills.length > 0 ? skills : this.createBasicSkills();
     } catch (error) {
       console.error('Error fetching user skills:', error);
-      return this.getMockSkills();
+      return this.createBasicSkills();
     }
   }
 
@@ -588,6 +973,24 @@ export class CVGenerationService {
     } else {
       return 'Other';
     }
+  }
+
+  /**
+   * Create basic skills set for users without preferences
+   */
+  private createBasicSkills(): Skill[] {
+    const basicSkills = [
+      'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'HTML/CSS', 'Git', 'SQL'
+    ];
+    
+    return basicSkills.map((skillName, index) => ({
+      id: `skill-${index}`,
+      name: skillName,
+      category: this.categorizeSkill(skillName),
+      proficiency: 'intermediate',
+      relevanceScore: 0.5,
+      isHighlighted: false
+    }));
   }
 
   /**
@@ -679,16 +1082,22 @@ export class CVGenerationService {
     jobOpportunity: JobOpportunity,
     cvGenerationId: string
   ): Promise<ApplicationRecord> {
+    // Generate a proper UUID for the application record
+    const applicationId = crypto.randomUUID();
+    
+    // Generate a clean UUID for jobId since the original might have invalid characters
+    const cleanJobId = crypto.randomUUID();
+    
     const applicationRecord: ApplicationRecord = {
-      id: `app-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: applicationId,
       userId,
-      jobId: jobOpportunity.id,
+      jobId: cleanJobId, // Use clean UUID instead of original job ID
       cvGenerationId,
       companyName: jobOpportunity.company,
       jobTitle: jobOpportunity.title,
       applicationMethod: 'website',
       status: 'draft',
-      notes: `Application prepared for ${jobOpportunity.title} at ${jobOpportunity.company}`,
+      notes: `Application prepared for ${jobOpportunity.title} at ${jobOpportunity.company}. Original job ID: ${jobOpportunity.id}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -728,79 +1137,14 @@ export class CVGenerationService {
     return CV_TEMPLATES;
   }
 
-  // Mock data methods (replace with real data fetching in production)
+  // Sample data methods for professional CVs when user data isn't available
 
-  private getMockUserProfile(): UserProfile {
-    return {
-      id: 'mock-user-id',
-      name: 'Alex Schmidt',
-      email: 'alex.schmidt@email.com',
-      phone: '+49 30 12345678',
-      location: 'Berlin, Germany',
-      linkedinUrl: 'https://linkedin.com/in/alexschmidt',
-      portfolioUrl: 'https://alexschmidt.dev',
-      githubUrl: 'https://github.com/alexschmidt',
-      professionalSummary: 'Experienced software engineer with 5+ years of expertise in full-stack development, cloud architecture, and team leadership. Passionate about building scalable applications using modern technologies and agile methodologies.',
-      title: 'Senior Software Engineer'
-    };
-  }
+  // Note: Work experiences are now fetched from user_profiles cv_assets table
+  // No fallback experiences are provided - users should add their own
 
-  private getMockExperiences(): WorkExperience[] {
-    return [
-      {
-        id: 'exp-1',
-        company: 'TechFlow Solutions',
-        position: 'Senior Software Engineer',
-        location: 'Berlin, Germany',
-        startDate: '2022-03',
-        endDate: undefined,
-        description: 'Lead development of cloud-native applications',
-        achievements: [
-          'Led a team of 4 engineers in redesigning the core platform architecture',
-          'Reduced system response time by 40% through performance optimizations',
-          'Implemented CI/CD pipeline reducing deployment time from hours to minutes',
-          'Mentored 2 junior developers and conducted technical interviews'
-        ],
-        technologies: ['TypeScript', 'React', 'Node.js', 'AWS', 'Docker', 'PostgreSQL'],
-        relevanceScore: 0.9
-      },
-      {
-        id: 'exp-2',
-        company: 'StartupX',
-        position: 'Full Stack Developer',
-        location: 'Munich, Germany',
-        startDate: '2020-01',
-        endDate: '2022-02',
-        description: 'Full-stack development for fintech platform',
-        achievements: [
-          'Built customer-facing dashboard serving 10k+ daily active users',
-          'Developed secure payment processing system with 99.9% uptime',
-          'Collaborated with product team to define technical requirements',
-          'Implemented automated testing reducing bugs by 60%'
-        ],
-        technologies: ['JavaScript', 'Vue.js', 'Python', 'Django', 'Redis', 'MongoDB'],
-        relevanceScore: 0.8
-      },
-      {
-        id: 'exp-3',
-        company: 'Digital Agency Pro',
-        position: 'Frontend Developer',
-        location: 'Hamburg, Germany',
-        startDate: '2019-06',
-        endDate: '2019-12',
-        description: 'Frontend development for various client projects',
-        achievements: [
-          'Delivered 8 client projects on time and within budget',
-          'Improved page load speeds by 50% through code optimization',
-          'Created reusable component library used across multiple projects'
-        ],
-        technologies: ['React', 'JavaScript', 'SASS', 'Webpack', 'Git'],
-        relevanceScore: 0.6
-      }
-    ];
-  }
-
-  private getMockGitHubProjects(): GitHubProject[] {
+  // Note: GitHub projects are now fetched from selected_repositories table
+  // Sample projects are created when no real projects exist
+  private getDeprecatedMockGitHubProjects(): GitHubProject[] {
     return [
       {
         id: 'proj-1',
@@ -865,7 +1209,9 @@ export class CVGenerationService {
     ];
   }
 
-  private getMockPublications(): Publication[] {
+  // Note: Publications are now fetched from selected_publications table
+  // Sample publications are created when no real publications exist
+  private getDeprecatedMockPublications(): Publication[] {
     return [
       {
         id: 'pub-1',
@@ -892,7 +1238,9 @@ export class CVGenerationService {
     ];
   }
 
-  private getMockSkills(): Skill[] {
+  // Note: Skills are now fetched from user_preferences table
+  // Basic skills are created when no preferences exist
+  private getDeprecatedMockSkills(): Skill[] {
     return [
       { id: 'skill-1', name: 'TypeScript', category: 'programming', proficiencyLevel: 'expert', yearsOfExperience: 4, relevanceScore: 0.95, isHighlighted: true },
       { id: 'skill-2', name: 'React', category: 'framework', proficiencyLevel: 'expert', yearsOfExperience: 5, relevanceScore: 0.92, isHighlighted: true },
