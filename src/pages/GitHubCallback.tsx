@@ -87,12 +87,29 @@ export default function GitHubCallback() {
 
         setMessage('Syncing repositories to profile...');
 
-        // Skip repository sync in development mode to avoid RLS issues
-        if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
-          console.log('Development mode: Skipping repository sync to avoid RLS issues');
-        } else if (user?.id) {
-          // Sync repositories to profile
+        // Sync repositories to profile (both dev and production)
+        if (user?.id) {
           await GitHubService.syncRepositoriesToProfile(user.id, repositories);
+        } else if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+          // In development mode, create a default repository structure in localStorage
+          const defaultSelectedRepos = repositories.slice(0, 3).map(repo => ({
+            user_id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
+            github_repo_id: repo.id,
+            repo_name: repo.name,
+            repo_full_name: repo.full_name,
+            repo_url: repo.html_url,
+            repo_description: repo.description,
+            user_description: `Sample description for ${repo.name} - showcasing ${repo.language || 'various'} development skills.`,
+            programming_languages: repo.language ? [repo.language] : [],
+            topics: repo.topics,
+            stars_count: repo.stargazers_count,
+            forks_count: repo.forks_count,
+            is_private: repo.private,
+            is_selected: true,
+          }));
+          
+          localStorage.setItem('selected_repositories', JSON.stringify(defaultSelectedRepos));
+          console.log('Development mode: Created sample selected repositories in localStorage');
         }
 
         setRepositoryCount(repositories.length);

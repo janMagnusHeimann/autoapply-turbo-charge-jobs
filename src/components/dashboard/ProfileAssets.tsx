@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
+import { GitHubService } from "@/services/githubService";
 import { SelectiveGitHubIntegration } from "./SelectiveGitHubIntegration";
 import { PublicationsIntegration } from "./PublicationsIntegration";
+import { useToast } from "@/hooks/use-toast";
 
 interface CVAsset {
   id: string;
@@ -84,8 +86,10 @@ interface SocialLinksData {
 
 export const ProfileAssets = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [assets, setAssets] = useState<CVAsset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [debugSyncing, setDebugSyncing] = useState(false);
   
   // Form states
   const [showExperienceForm, setShowExperienceForm] = useState(false);
@@ -167,24 +171,90 @@ export const ProfileAssets = () => {
     if (!user) return;
     
     setLoadingSocialLinks(true);
+    console.log('Fetching social links for user:', user.id);
+    
     try {
+      // Initialize with empty strings to ensure consistent state
+      let initialLinks = {
+        linkedin: '',
+        github: '',
+        x: '',
+        medium: '',
+        portfolio: '',
+        blog: '',
+        youtube: '',
+        behance: '',
+        dribbble: '',
+        stackoverflow: ''
+      };
+      
+      // First, try to load from localStorage
+      const storedLinks = localStorage.getItem(`socialLinks_${user.id}`);
+      if (storedLinks) {
+        try {
+          const parsedLinks = JSON.parse(storedLinks);
+          initialLinks = { ...initialLinks, ...parsedLinks };
+          setSocialLinks(initialLinks);
+          console.log('Loaded social links from localStorage:', initialLinks);
+        } catch (e) {
+          console.error('Error parsing localStorage social links:', e);
+        }
+      }
+      
+      // Then fetch from database (this will overwrite with latest data)
       const profile = await UserService.getUserProfile(user.id);
+      console.log('Fetched user profile:', profile);
+      
       if (profile) {
-        setSocialLinks({
+        const profileLinks = {
           linkedin: profile.linkedin_url || '',
           github: profile.github_url || '',
-          x: profile.twitter_url || '',
-          medium: profile.medium_url || '',
           portfolio: profile.portfolio_url || '',
-          blog: profile.blog_url || '',
-          youtube: profile.youtube_url || '',
-          behance: profile.behance_url || '',
-          dribbble: profile.dribbble_url || '',
-          stackoverflow: profile.stackoverflow_url || ''
-        });
+          // These will come from localStorage until migration is applied
+          x: initialLinks.x || '',
+          medium: initialLinks.medium || '',
+          blog: initialLinks.blog || '',
+          youtube: initialLinks.youtube || '',
+          behance: initialLinks.behance || '',
+          dribbble: initialLinks.dribbble || '',
+          stackoverflow: initialLinks.stackoverflow || ''
+        };
+        
+        setSocialLinks(profileLinks);
+        
+        // Update localStorage with latest database data
+        localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(profileLinks));
+        console.log('Loaded social links from database:', profileLinks);
+      } else {
+        // If no profile found, set empty links but still initialize state
+        setSocialLinks(initialLinks);
+        console.log('No profile found, using initial links:', initialLinks);
       }
     } catch (error) {
       console.error('Error fetching social links:', error);
+      
+      // If database fails, try localStorage as fallback
+      const storedLinks = localStorage.getItem(`socialLinks_${user.id}`);
+      if (storedLinks) {
+        try {
+          const parsedLinks = JSON.parse(storedLinks);
+          setSocialLinks(parsedLinks);
+          console.log('Fallback: Loaded social links from localStorage:', parsedLinks);
+        } catch (e) {
+          console.error('Error parsing fallback localStorage:', e);
+          // Set empty state as last resort
+          setSocialLinks({
+            linkedin: '', github: '', x: '', medium: '', portfolio: '',
+            blog: '', youtube: '', behance: '', dribbble: '', stackoverflow: ''
+          });
+        }
+      } else {
+        // Set empty state as last resort
+        setSocialLinks({
+          linkedin: '', github: '', x: '', medium: '', portfolio: '',
+          blog: '', youtube: '', behance: '', dribbble: '', stackoverflow: ''
+        });
+      }
     } finally {
       setLoadingSocialLinks(false);
     }
@@ -195,25 +265,58 @@ export const ProfileAssets = () => {
     
     setLoadingSocialLinks(true);
     try {
-      await UserService.updateUserProfile(user.id, {
+      console.log('Manually saving social links:', socialLinks);
+      const result = await UserService.updateUserProfile(user.id, {
         linkedin_url: socialLinks.linkedin || null,
         github_url: socialLinks.github || null,
-        twitter_url: socialLinks.x || null,
-        medium_url: socialLinks.medium || null,
-        portfolio_url: socialLinks.portfolio || null,
-        blog_url: socialLinks.blog || null,
-        youtube_url: socialLinks.youtube || null,
-        behance_url: socialLinks.behance || null,
-        dribbble_url: socialLinks.dribbble || null,
-        stackoverflow_url: socialLinks.stackoverflow || null
+        portfolio_url: socialLinks.portfolio || null
+        // Note: twitter_url, medium_url, blog_url, youtube_url, behance_url, dribbble_url, stackoverflow_url
+        // are not yet in the database schema - need to run migration first
       });
-      console.log('Social links saved successfully');
+      console.log('Social links saved successfully:', result);
+      
+      // Also save to localStorage as backup
+      localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(socialLinks));
     } catch (error) {
       console.error('Error saving social links:', error);
+      alert('Error saving social links. Please try again.');
     } finally {
       setLoadingSocialLinks(false);
     }
   };
+
+  // Auto-save social links when they change (with debounce)
+  useEffect(() => {
+    if (!user) return;
+    
+    // Skip auto-save on initial load (when socialLinks is still empty object)
+    if (Object.keys(socialLinks).length === 0) return;
+    
+    console.log('Social links changed, auto-saving in 2 seconds:', socialLinks);
+    
+    // Save to localStorage immediately for persistence
+    localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(socialLinks));
+    
+    // Debounced auto-save to database
+    const timeoutId = setTimeout(async () => {
+      if (!user) return;
+      
+      console.log('Auto-saving social links to database...');
+      try {
+        const result = await UserService.updateUserProfile(user.id, {
+          linkedin_url: socialLinks.linkedin || null,
+          github_url: socialLinks.github || null,
+          portfolio_url: socialLinks.portfolio || null
+          // Note: Other social links saved to localStorage only until migration is applied
+        });
+        console.log('Social links auto-saved successfully to database:', result);
+      } catch (error) {
+        console.error('Error auto-saving social links:', error);
+      }
+    }, 2000); // Auto-save after 2 seconds of no changes
+    
+    return () => clearTimeout(timeoutId);
+  }, [socialLinks, user]);
 
   const getDemoAssets = (): CVAsset[] => [
     {
@@ -552,6 +655,40 @@ export const ProfileAssets = () => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+  };
+
+  const handleDebugSync = async () => {
+    if (!user) return;
+    
+    try {
+      setDebugSyncing(true);
+      console.log('🐛 Debug: Force syncing GitHub repositories...');
+      
+      const result = await GitHubService.forceSyncRepositories(user.id);
+      
+      if (result.success) {
+        toast({
+          title: "Debug Sync Successful",
+          description: result.message,
+        });
+        await fetchAssets(); // Refresh assets
+      } else {
+        toast({
+          title: "Debug Sync Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Debug sync error:', error);
+      toast({
+        title: "Debug Sync Error",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      setDebugSyncing(false);
+    }
   };
 
   const experiences = assets.filter(asset => asset.asset_type === 'experience');
@@ -1171,9 +1308,22 @@ export const ProfileAssets = () => {
 
         {/* Repositories Tab */}
         <TabsContent value="repositories" className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-white">GitHub Portfolio</h2>
-            <p className="text-gray-400">Select repositories and add descriptions for your professional portfolio</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">GitHub Portfolio</h2>
+              <p className="text-gray-400">Select repositories and add descriptions for your professional portfolio</p>
+            </div>
+            {import.meta.env.DEV && (
+              <Button
+                onClick={handleDebugSync}
+                disabled={debugSyncing}
+                variant="outline"
+                size="sm"
+                className="border-orange-500 text-orange-500 hover:bg-orange-500/10"
+              >
+                {debugSyncing ? 'Syncing...' : '🐛 Debug Sync'}
+              </Button>
+            )}
           </div>
           
           <SelectiveGitHubIntegration onRepositoriesSync={fetchAssets} />

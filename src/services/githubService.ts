@@ -450,20 +450,27 @@ export class GitHubService {
    */
   static async getSelectedRepositories(userId: string): Promise<SelectedRepository[]> {
     try {
+      console.log(`🔍 Loading selected repositories for user: ${userId}`);
+      
       // In development mode with bypass auth, try Supabase first, then localStorage
       if (import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true') {
+        console.log('🔧 Development mode: Trying Supabase first...');
+        
         // Try to load from Supabase first, then fallback to localStorage
         const supabaseData = await loadFromSupabaseService<SelectedRepository>('selected_repositories', userId);
-        if (supabaseData !== null) {
-          console.log('📥 Loaded from Supabase database');
+        if (supabaseData !== null && supabaseData.length > 0) {
+          console.log(`📥 Loaded ${supabaseData.length} repositories from Supabase database`);
           return supabaseData;
         }
         
+        console.log('📱 No Supabase data, trying localStorage...');
         // Fallback to localStorage
         const saved = localStorage.getItem('selected_repositories');
         const localData = saved ? JSON.parse(saved) : [];
         console.log('📱 Loaded from localStorage:', localData.length, 'repositories');
-        console.log('📱 Sample data:', localData.slice(0, 2));
+        if (localData.length > 0) {
+          console.log('📱 Sample data:', localData.slice(0, 2).map((r: any) => ({ name: r.repo_name, selected: r.is_selected })));
+        }
         return localData;
       }
 
@@ -500,6 +507,7 @@ export class GitHubService {
           console.log('✅ Also saved to Supabase database');
         } else {
           console.log('⚠️ Supabase save failed, using localStorage only');
+          // In case Supabase save fails, we still have localStorage backup
         }
         return;
       }
@@ -677,6 +685,55 @@ export class GitHubService {
     } catch (error) {
       console.error('Error getting selected repository count:', error);
       return 0;
+    }
+  }
+
+  /**
+   * Force sync repositories for development/testing
+   */
+  static async forceSyncRepositories(userId: string): Promise<{ success: boolean; message: string; count: number }> {
+    try {
+      console.log('🔄 Force syncing repositories for user:', userId);
+      
+      const token = await this.getGitHubToken(userId);
+      if (!token) {
+        return { success: false, message: 'No GitHub token found', count: 0 };
+      }
+
+      const repositories = await this.getUserRepositories(token);
+      console.log(`🔄 Fetched ${repositories.length} repositories from GitHub`);
+
+      // Create default selected repositories (first 3, or all if less than 3)
+      const selectedRepos: SelectedRepository[] = repositories.slice(0, Math.min(3, repositories.length)).map(repo => ({
+        user_id: userId,
+        github_repo_id: repo.id,
+        repo_name: repo.name,
+        repo_full_name: repo.full_name,
+        repo_url: repo.html_url,
+        repo_description: repo.description,
+        user_description: `Key project showcasing ${repo.language || 'development'} skills. ${repo.description || 'Built with modern technologies and best practices.'}`,
+        programming_languages: repo.language ? [repo.language] : [],
+        topics: repo.topics,
+        stars_count: repo.stargazers_count,
+        forks_count: repo.forks_count,
+        is_private: repo.private,
+        is_selected: true,
+      }));
+
+      await this.saveSelectedRepositories(userId, selectedRepos);
+      
+      return { 
+        success: true, 
+        message: `Successfully synced ${selectedRepos.length} repositories`, 
+        count: selectedRepos.length 
+      };
+    } catch (error) {
+      console.error('Error force syncing repositories:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Unknown error', 
+        count: 0 
+      };
     }
   }
 }
