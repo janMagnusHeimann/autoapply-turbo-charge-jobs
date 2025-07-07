@@ -228,11 +228,11 @@ async def process_cv(request: CVProcessingRequest):
         if social_links.get('linkedin'):
             profile_data['linkedin_url'] = social_links['linkedin']
         if social_links.get('github'):
-            profile_data['github'] = social_links['github']
+            profile_data['github_url'] = social_links['github']
         if social_links.get('portfolio'):
             profile_data['portfolio_url'] = social_links['portfolio']
         if social_links.get('x'):
-            profile_data['x_url'] = social_links['x']
+            profile_data['twitter_url'] = social_links['x']  # Fixed: use twitter_url instead of x_url
         if social_links.get('medium'):
             profile_data['medium_url'] = social_links['medium']
         
@@ -256,6 +256,92 @@ async def process_cv(request: CVProcessingRequest):
                 logger.error(f"❌ Exception type: {type(e).__name__}")
                 import traceback
                 logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+        
+        # BACKUP AND CLEAR EXISTING CV DATA before importing new CV
+        logger.info("🔄 Backing up and clearing existing CV data...")
+        
+        # Step 1: Backup existing CV assets (experience, education, other with category award/certification)
+        backup_timestamp = datetime.utcnow().isoformat()
+        try:
+            # Find existing CV assets to backup
+            cv_asset_types = ['experience', 'education', 'other']
+            existing_assets_result = supabase_client.table('cv_assets')\
+                .select('*')\
+                .eq('user_id', request.user_id)\
+                .in_('asset_type', cv_asset_types)\
+                .execute()
+            
+            existing_assets = existing_assets_result.data if existing_assets_result.data else []
+            logger.info(f"📦 Found {len(existing_assets)} existing CV assets to backup")
+            
+            # Backup existing assets by updating their metadata with backup flag
+            assets_backed_up = 0
+            for asset in existing_assets:
+                try:
+                    # Add backup metadata
+                    backup_metadata = asset.get('metadata', {}) or {}
+                    backup_metadata['backup_timestamp'] = backup_timestamp
+                    backup_metadata['backup_title'] = asset.get('title', '')
+                    backup_metadata['is_backup'] = True
+                    
+                    # Update the asset to mark it as backup and change title
+                    backup_title = f"[BACKUP {backup_timestamp[:10]}] {asset.get('title', 'CV Asset')}"
+                    
+                    update_result = supabase_client.table('cv_assets')\
+                        .update({\
+                            'title': backup_title,\
+                            'metadata': backup_metadata\
+                        })\
+                        .eq('id', asset['id'])\
+                        .execute()
+                    
+                    if update_result.data:
+                        assets_backed_up += 1
+                        
+                except Exception as backup_error:
+                    logger.error(f"❌ Failed to backup asset {asset.get('id')}: {backup_error}")
+            
+            logger.info(f"✅ Backed up {assets_backed_up} CV assets with timestamp {backup_timestamp}")
+            
+        except Exception as e:
+            logger.error(f"❌ CV backup failed: {e}")
+            # Continue with import even if backup fails
+        
+        # Step 2: Delete the original CV assets that were just backed up
+        try:
+            logger.info(f"🗑️ Now deleting the {len(existing_assets)} original assets that were backed up...")
+            
+            # Delete the original assets (we already have their IDs from the backup step)
+            deleted_count = 0
+            for asset in existing_assets:
+                asset_id = asset['id']
+                title = asset.get('title', 'Untitled')
+                
+                logger.info(f"🗑️ Deleting original asset: '{title}' (ID: {asset_id})")
+            
+                try:
+                    delete_result = supabase_client.table('cv_assets')\
+                        .delete()\
+                        .eq('id', asset_id)\
+                        .execute()
+                    
+                    if delete_result.data:
+                        deleted_count += len(delete_result.data)
+                        logger.info(f"✅ Successfully deleted original asset: '{title}'")
+                    else:
+                        logger.warning(f"⚠️ Delete operation returned no data for asset: '{title}'")
+                        
+                except Exception as del_error:
+                    logger.error(f"❌ Failed to delete asset {asset_id}: {del_error}")
+            
+            logger.info(f"🗑️ Successfully cleared {deleted_count} original CV assets")
+            logger.info(f"📊 Final result: {deleted_count} originals deleted, {assets_backed_up} backups created")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to clear existing CV data: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            # Continue with import even if clearing fails
         
         # Create CV assets for experience, education, certifications, and awards
         assets_created = 0
@@ -283,20 +369,22 @@ async def process_cv(request: CVProcessingRequest):
                             'company': exp.get('company', ''),
                             'title': exp.get('title', ''),
                             'location': exp.get('location', ''),
-                            'start_date': exp.get('start_date', ''),
-                            'end_date': exp.get('end_date', '')
+                            'startDate': exp.get('start_date', ''),
+                            'endDate': exp.get('end_date', ''),
+                            'current': exp.get('end_date', '') == 'current'
                         }
                     }
                     logger.info(f"🔄 Creating experience asset: {asset_data}")
                     result = supabase_client.table('cv_assets').insert(asset_data).execute()
                     
-                    if result.error:
-                        logger.error(f"❌ Supabase error creating experience asset: {result.error}")
-                        logger.error(f"❌ Asset data was: {asset_data}")
-                    else:
+                    # Check if the request was successful (200-299 status codes)
+                    if hasattr(result, 'data') and result.data:
                         assets_created += len(result.data)
                         logger.info(f"✅ Created experience asset: {title}")
                         logger.info(f"✅ Asset creation result: {result.data}")
+                    else:
+                        logger.error(f"❌ Failed to create experience asset: {title}")
+                        logger.error(f"❌ Asset data was: {asset_data}")
                         
                 except Exception as e:
                     logger.error(f"❌ Exception creating experience asset: {e}")
@@ -328,20 +416,22 @@ async def process_cv(request: CVProcessingRequest):
                             'institution': edu.get('institution', ''),
                             'degree': edu.get('degree', ''),
                             'location': edu.get('location', ''),
-                            'start_date': edu.get('start_date', ''),
-                            'end_date': edu.get('end_date', '')
+                            'startDate': edu.get('start_date', ''),
+                            'endDate': edu.get('end_date', ''),
+                            'current': edu.get('end_date', '') == 'current'
                         }
                     }
                     logger.info(f"🔄 Creating education asset: {asset_data}")
                     result = supabase_client.table('cv_assets').insert(asset_data).execute()
                     
-                    if result.error:
-                        logger.error(f"❌ Supabase error creating education asset: {result.error}")
-                        logger.error(f"❌ Asset data was: {asset_data}")
-                    else:
+                    # Check if the request was successful (200-299 status codes)
+                    if hasattr(result, 'data') and result.data:
                         assets_created += len(result.data)
                         logger.info(f"✅ Created education asset: {title}")
                         logger.info(f"✅ Asset creation result: {result.data}")
+                    else:
+                        logger.error(f"❌ Failed to create education asset: {title}")
+                        logger.error(f"❌ Asset data was: {asset_data}")
                         
                 except Exception as e:
                     logger.error(f"❌ Exception creating education asset: {e}")
@@ -350,44 +440,64 @@ async def process_cv(request: CVProcessingRequest):
                     import traceback
                     logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         
-        # Process certifications
+        # Process certifications (use 'other' asset_type as 'certification' is not allowed)
         for cert in extracted_data.get('certifications', []):
             if cert.get('name'):
                 try:
                     asset_data = {
                         'user_id': request.user_id,
-                        'asset_type': 'certification',
+                        'asset_type': 'other',  # Fixed: use 'other' instead of 'certification'
                         'title': cert['name'],
                         'description': f"Issued by {cert.get('issuer', 'Unknown')}",
                         'metadata': {
-                            'issuer': cert.get('issuer'),
-                            'date': cert.get('date'),
-                            'credential_id': cert.get('credential_id')
+                            'organization': cert.get('issuer', ''),
+                            'startDate': cert.get('date', ''),
+                            'endDate': cert.get('date', ''),
+                            'credential_id': cert.get('credential_id', ''),
+                            'category': 'certification',
+                            'current': False
                         }
                     }
                     result = supabase_client.table('cv_assets').insert(asset_data).execute()
-                    assets_created += len(result.data)
+                    
+                    if hasattr(result, 'data') and result.data:
+                        assets_created += len(result.data)
+                        logger.info(f"✅ Created certification asset: {cert['name']}")
+                    else:
+                        logger.error(f"❌ Failed to create certification asset: {cert['name']}")
+                        
                 except Exception as e:
-                    logger.error(f"Failed to create certification asset: {e}")
+                    logger.error(f"❌ Exception creating certification asset: {e}")
+                    logger.error(f"❌ Certification data was: {cert}")
         
-        # Process awards
+        # Process awards (use 'other' asset_type as 'award' is not allowed)
         for award in extracted_data.get('awards', []):
             if award.get('title'):
                 try:
                     asset_data = {
                         'user_id': request.user_id,
-                        'asset_type': 'award',
+                        'asset_type': 'other',  # Fixed: use 'other' instead of 'award'
                         'title': award['title'],
                         'description': award.get('description', ''),
                         'metadata': {
-                            'issuer': award.get('issuer'),
-                            'date': award.get('date')
+                            'organization': award.get('issuer', ''),
+                            'startDate': award.get('date', ''),
+                            'endDate': award.get('date', ''),
+                            'category': 'award',
+                            'current': False
                         }
                     }
                     result = supabase_client.table('cv_assets').insert(asset_data).execute()
-                    assets_created += len(result.data)
+                    
+                    if hasattr(result, 'data') and result.data:
+                        assets_created += len(result.data)
+                        logger.info(f"✅ Created award asset: {award['title']}")
+                    else:
+                        logger.error(f"❌ Failed to create award asset: {award['title']}")
+                        
                 except Exception as e:
-                    logger.error(f"Failed to create award asset: {e}")
+                    logger.error(f"❌ Exception creating award asset: {e}")
+                    logger.error(f"❌ Award data was: {award}")
         
         # Calculate processing time
         processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -634,6 +744,160 @@ async def extract_pdf_text(request: PDFExtractionRequest):
             status="error",
             error=f"PDF processing failed: {str(e)}"
         )
+
+@app.post("/restore-cv-backup")
+async def restore_cv_backup(request: dict):
+    """
+    Restore CV data from backup by backup_timestamp
+    """
+    try:
+        user_id = request.get('user_id')
+        backup_timestamp = request.get('backup_timestamp')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        if not backup_timestamp:
+            raise HTTPException(status_code=400, detail="backup_timestamp is required")
+        
+        logger.info(f"🔄 Restoring CV backup for user {user_id} from {backup_timestamp}")
+        
+        if not supabase_client:
+            raise HTTPException(status_code=503, detail="Database service not available")
+        
+        # Step 1: Find backup assets
+        backup_assets_result = supabase_client.table('cv_assets')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('metadata->backup_timestamp', backup_timestamp)\
+            .eq('metadata->is_backup', True)\
+            .execute()
+        
+        backup_assets = backup_assets_result.data if backup_assets_result.data else []
+        logger.info(f"📦 Found {len(backup_assets)} backup assets to restore")
+        
+        if not backup_assets:
+            return {
+                "status": "error",
+                "message": f"No backup found for timestamp {backup_timestamp}"
+            }
+        
+        # Step 2: Clear current CV data (non-backup)
+        cv_asset_types = ['experience', 'education', 'other']
+        try:
+            delete_result = supabase_client.table('cv_assets')\
+                .delete()\
+                .eq('user_id', user_id)\
+                .in_('asset_type', cv_asset_types)\
+                .is_('metadata->is_backup', 'null')\
+                .execute()
+            
+            deleted_count = len(delete_result.data) if delete_result.data else 0
+            logger.info(f"🗑️ Cleared {deleted_count} current CV assets")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to clear current CV data: {e}")
+            raise HTTPException(status_code=500, detail="Failed to clear current CV data")
+        
+        # Step 3: Restore backup assets (remove backup flags and restore original titles)
+        restored_count = 0
+        for backup_asset in backup_assets:
+            try:
+                # Restore original metadata
+                metadata = backup_asset.get('metadata', {}) or {}
+                original_title = metadata.get('backup_title', backup_asset.get('title', ''))
+                
+                # Remove backup flags
+                restored_metadata = {k: v for k, v in metadata.items() 
+                                   if k not in ['backup_timestamp', 'backup_title', 'is_backup']}
+                
+                # Update the asset to restore it
+                restore_result = supabase_client.table('cv_assets')\
+                    .update({\
+                        'title': original_title,\
+                        'metadata': restored_metadata\
+                    })\
+                    .eq('id', backup_asset['id'])\
+                    .execute()
+                
+                if restore_result.data:
+                    restored_count += 1
+                    
+            except Exception as restore_error:
+                logger.error(f"❌ Failed to restore asset {backup_asset.get('id')}: {restore_error}")
+        
+        logger.info(f"✅ Restored {restored_count} CV assets from backup {backup_timestamp}")
+        
+        return {
+            "status": "success",
+            "message": f"Successfully restored {restored_count} CV assets from backup",
+            "data": {
+                "backup_timestamp": backup_timestamp,
+                "assets_restored": restored_count
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ CV restore failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to restore CV backup: {str(e)}"
+        }
+
+@app.get("/list-cv-backups/{user_id}")
+async def list_cv_backups(user_id: str):
+    """
+    List available CV backups for a user
+    """
+    try:
+        logger.info(f"📋 Listing CV backups for user {user_id}")
+        
+        if not supabase_client:
+            raise HTTPException(status_code=503, detail="Database service not available")
+        
+        # Find all backup assets and group by backup_timestamp
+        backup_assets_result = supabase_client.table('cv_assets')\
+            .select('metadata')\
+            .eq('user_id', user_id)\
+            .eq('metadata->is_backup', True)\
+            .execute()
+        
+        backup_assets = backup_assets_result.data if backup_assets_result.data else []
+        
+        # Group by backup timestamp
+        backups = {}
+        for asset in backup_assets:
+            metadata = asset.get('metadata', {}) or {}
+            timestamp = metadata.get('backup_timestamp')
+            if timestamp:
+                if timestamp not in backups:
+                    backups[timestamp] = 0
+                backups[timestamp] += 1
+        
+        # Convert to list and sort by timestamp (newest first)
+        backup_list = [
+            {
+                "backup_timestamp": timestamp,
+                "asset_count": count,
+                "backup_date": timestamp[:10] if timestamp else "Unknown"
+            }
+            for timestamp, count in sorted(backups.items(), reverse=True)
+        ]
+        
+        logger.info(f"📋 Found {len(backup_list)} CV backups")
+        
+        return {
+            "status": "success",
+            "backups": backup_list
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to list CV backups: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to list backups: {str(e)}"
+        }
 
 if __name__ == "__main__":
     import uvicorn

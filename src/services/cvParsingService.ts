@@ -138,6 +138,92 @@ export class CVParsingService {
   }
 
   /**
+   * List available CV backups for a user
+   */
+  static async listCVBackups(userId: string): Promise<{ success: boolean; backups?: any[]; error?: string }> {
+    try {
+      const cvApiUrl = import.meta.env.VITE_CV_API_BASE_URL || 'http://localhost:8001';
+      
+      const response = await fetch(`${cvApiUrl}/list-cv-backups/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to list backups: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        return {
+          success: true,
+          backups: result.backups || []
+        };
+      } else {
+        return {
+          success: false,
+          error: result.message || 'Failed to list backups'
+        };
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to list CV backups:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
+   * Restore CV data from backup
+   */
+  static async restoreCVBackup(userId: string, backupTimestamp: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const cvApiUrl = import.meta.env.VITE_CV_API_BASE_URL || 'http://localhost:8001';
+      
+      const response = await fetch(`${cvApiUrl}/restore-cv-backup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          backup_timestamp: backupTimestamp
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to restore backup: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        return {
+          success: true,
+          data: result.data
+        };
+      } else {
+        return {
+          success: false,
+          error: result.message || 'Failed to restore backup'
+        };
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to restore CV backup:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
    * Extract text from CV file for backend processing
    */
   static async extractTextForBackend(file: File): Promise<string> {

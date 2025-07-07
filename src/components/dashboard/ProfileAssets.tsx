@@ -98,6 +98,12 @@ export const ProfileAssets = () => {
   const [cvUploading, setCvUploading] = useState(false);
   const [cvParseResult, setCvParseResult] = useState<string>('');
   
+  // CV Backup states
+  const [showBackupRestore, setShowBackupRestore] = useState(false);
+  const [availableBackups, setAvailableBackups] = useState<any[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState(false);
+  
   // Form states
   const [showExperienceForm, setShowExperienceForm] = useState(false);
   const [showEducationForm, setShowEducationForm] = useState(false);
@@ -660,8 +666,38 @@ export const ProfileAssets = () => {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    
+    // Handle various date formats from CV extraction
+    // Examples: "Apr 2025", "2025-04", "2025", "April 2025", "2025-04-15"
+    try {
+      // If it's already in a "Month Year" format like "Apr 2025", return as-is
+      if (/^[A-Za-z]{3,9}\s+\d{4}$/.test(dateString)) {
+        return dateString;
+      }
+      
+      // If it's "YYYY-MM" format, convert to "Month Year"
+      if (/^\d{4}-\d{2}$/.test(dateString)) {
+        const date = new Date(dateString + '-01'); // Add day to make it valid
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      }
+      
+      // If it's just a year "YYYY", return as-is
+      if (/^\d{4}$/.test(dateString)) {
+        return dateString;
+      }
+      
+      // Try to parse as a regular date
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      }
+      
+      // If all else fails, return the original string
+      return dateString;
+    } catch (error) {
+      // If parsing fails, return the original string
+      return dateString;
+    }
   };
 
   const handleDebugSync = async () => {
@@ -769,6 +805,72 @@ export const ProfileAssets = () => {
     }
   };
 
+  const fetchAvailableBackups = async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingBackups(true);
+      const result = await CVParsingService.listCVBackups(user.id);
+      
+      if (result.success) {
+        setAvailableBackups(result.backups || []);
+      } else {
+        console.error('Failed to fetch backups:', result.error);
+        toast({
+          title: "Failed to load backups",
+          description: result.error || "Could not load available backups",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching backups:', error);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const handleRestoreBackup = async (backupTimestamp: string) => {
+    if (!user) return;
+    
+    try {
+      setRestoringBackup(true);
+      
+      const result = await CVParsingService.restoreCVBackup(user.id, backupTimestamp);
+      
+      if (result.success) {
+        toast({
+          title: "Backup Restored Successfully",
+          description: `Restored ${result.data?.assets_restored || 0} CV assets from backup`,
+        });
+        
+        // Refresh the assets and close the backup dialog
+        await fetchAssets();
+        setShowBackupRestore(false);
+        
+      } else {
+        toast({
+          title: "Failed to Restore Backup",
+          description: result.error || "Could not restore the selected backup",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error restoring backup:', error);
+      toast({
+        title: "Restore Failed",
+        description: "An error occurred while restoring the backup",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoringBackup(false);
+    }
+  };
+
+  const handleShowBackupRestore = () => {
+    setShowBackupRestore(true);
+    fetchAvailableBackups();
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -803,11 +905,41 @@ export const ProfileAssets = () => {
     }
   };
 
-  const experiences = assets.filter(asset => asset.asset_type === 'experience');
-  const education = assets.filter(asset => asset.asset_type === 'education');
+  // Sort assets chronologically (most recent first)
+  const sortAssetsByDate = (assets: CVAsset[]) => {
+    return assets.sort((a, b) => {
+      // Handle both old (start_date) and new (startDate) field names for backward compatibility
+      const aStartDate = a.metadata?.startDate || a.metadata?.start_date || '';
+      const bStartDate = b.metadata?.startDate || b.metadata?.start_date || '';
+      
+      // Handle "current" positions - they should be first
+      const aIsCurrent = a.metadata?.current || a.metadata?.endDate === 'current' || a.metadata?.end_date === 'current';
+      const bIsCurrent = b.metadata?.current || b.metadata?.endDate === 'current' || b.metadata?.end_date === 'current';
+      
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (!aIsCurrent && bIsCurrent) return 1;
+      
+      // For non-current positions, sort by start date (most recent first)
+      if (aStartDate && bStartDate) {
+        // Try to parse dates for comparison
+        const aDate = new Date(aStartDate.includes(' ') ? aStartDate : aStartDate + '-01');
+        const bDate = new Date(bStartDate.includes(' ') ? bStartDate : bStartDate + '-01');
+        
+        if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+          return bDate.getTime() - aDate.getTime(); // Most recent first
+        }
+      }
+      
+      // Fallback to string comparison
+      return bStartDate.localeCompare(aStartDate);
+    });
+  };
+  
+  const experiences = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'experience'));
+  const education = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'education'));
   const repositories = assets.filter(asset => asset.asset_type === 'repository');
   const publications = assets.filter(asset => asset.asset_type === 'publication');
-  const otherAssets = assets.filter(asset => asset.asset_type === 'other');
+  const otherAssets = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'other'));
 
   const getCategoryIcon = (category: string) => {
     const iconMap: { [key: string]: any } = {
@@ -972,6 +1104,16 @@ export const ProfileAssets = () => {
                         Import CV Data
                       </>
                     )}
+                  </Button>
+                  
+                  {/* Restore Previous CV Button */}
+                  <Button
+                    variant="outline"
+                    onClick={handleShowBackupRestore}
+                    className="ml-2"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Restore Previous CV
                   </Button>
                 </div>
               )}
@@ -1361,10 +1503,12 @@ export const ProfileAssets = () => {
                             <Calendar className="w-4 h-4" />
                             {formatDate(exp.metadata?.startDate)} - {exp.metadata?.current ? 'Present' : formatDate(exp.metadata?.endDate)}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {exp.metadata?.location}
-                          </span>
+                          {exp.metadata?.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {exp.metadata.location}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1444,6 +1588,12 @@ export const ProfileAssets = () => {
                             <Calendar className="w-4 h-4" />
                             {formatDate(edu.metadata?.startDate)} - {edu.metadata?.current ? 'Present' : formatDate(edu.metadata?.endDate)}
                           </span>
+                          {edu.metadata?.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {edu.metadata.location}
+                            </span>
+                          )}
                           {edu.metadata?.gpa && (
                             <span>GPA: {edu.metadata.gpa}</span>
                           )}
@@ -2020,6 +2170,101 @@ export const ProfileAssets = () => {
                 {editingOther ? 'Update' : 'Add'} Achievement
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup Restore Dialog */}
+      <Dialog open={showBackupRestore} onOpenChange={() => {
+        setShowBackupRestore(false);
+        setAvailableBackups([]);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Restore Previous CV Data
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">
+              Select a previous CV backup to restore. This will replace your current CV data (Experience and Education) with the selected backup.
+            </p>
+            
+            {loadingBackups ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                <span className="ml-3">Loading available backups...</span>
+              </div>
+            ) : availableBackups.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No previous CV backups found.</p>
+                <p className="text-sm mt-2">Backups are created automatically when you upload a new CV.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="font-medium text-sm">Available Backups:</h3>
+                {availableBackups.map((backup, index) => (
+                  <div key={backup.backup_timestamp} className="border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">Backup #{availableBackups.length - index}</h4>
+                        <p className="text-sm text-gray-400">
+                          Created: {backup.backup_date} ({backup.asset_count} items)
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          ID: {backup.backup_timestamp}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRestoreBackup(backup.backup_timestamp)}
+                        disabled={restoringBackup}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {restoringBackup ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Restoring...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Restore
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-yellow-200 mb-1">Important</h4>
+                  <p className="text-sm text-yellow-300">
+                    Restoring a backup will replace your current CV data. Your current data will be automatically backed up before the restore.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBackupRestore(false);
+                setAvailableBackups([]);
+              }}
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

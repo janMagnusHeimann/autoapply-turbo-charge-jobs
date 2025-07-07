@@ -103,12 +103,15 @@ IMPORTANT: Be very liberal in extraction - save ANYTHING that looks like:
 - Education, degrees, schools, universities (even without dates) 
 - Skills, technologies, programming languages
 - Contact info, names, locations
+- Pay special attention to LOCATIONS and DATES for each position
 
 Examples of what to extract:
 - "Software Engineer at Google" → title: "Software Engineer", company: "Google"
 - "Stanford University, Computer Science" → institution: "Stanford University", degree: "Computer Science"
 - "2020-2023" or "2020 to 2023" or "2020-present" → dates in any format
 - "JavaScript, Python, React" → skills
+- "Remote", "San Francisco, CA", "New York", "Germany", "Berlin" → locations
+- "Machine Learning Engineer at DRWN AI (Remote, Apr 2025 - current)" → extract all parts
 
 CV Text:
 {chunk}
@@ -133,9 +136,9 @@ Return JSON with this structure (fill only what you find, leave others empty):
         {{
             "title": "job title (required)",
             "company": "company name (required)", 
-            "location": "work location if found",
-            "start_date": "any date format",
-            "end_date": "any date format or 'current'",
+            "location": "work location - look for Remote, city names, countries, states",
+            "start_date": "any date format - be liberal with parsing",
+            "end_date": "any date format or 'current' if still working",
             "description": "job description if found"
         }}
     ],
@@ -143,8 +146,8 @@ Return JSON with this structure (fill only what you find, leave others empty):
         {{
             "degree": "degree name",
             "institution": "school/university name (required)",
-            "location": "school location if found", 
-            "start_date": "any date format",
+            "location": "school location - look for city, state, country", 
+            "start_date": "any date format - be liberal with parsing",
             "end_date": "any date format",
             "description": "any relevant details"
         }}
@@ -184,7 +187,7 @@ CRITICAL: Return ONLY the JSON object, no markdown formatting, no explanations.
                         "content": prompt
                     }
                 ],
-                max_tokens=2000,
+                max_tokens=3000,
                 temperature=0.1
             )
             
@@ -200,7 +203,49 @@ CRITICAL: Return ONLY the JSON object, no markdown formatting, no explanations.
             if response_text.endswith("```"):
                 response_text = response_text[:-3]
             
-            parsed_data = json.loads(response_text)
+            # Try to parse JSON, with fallback for truncated responses
+            try:
+                parsed_data = json.loads(response_text)
+            except json.JSONDecodeError as json_error:
+                logger.error(f"Failed to parse JSON from chunk {chunk_index}: {json_error}")
+                logger.error(f"Response was: {response_text}")
+                
+                # Try to fix common JSON issues
+                # If response is truncated, try to close it
+                if not response_text.endswith('}'):
+                    # Try adding closing braces
+                    for close_attempts in ['"}]', '"]', '}', '"}]}']:
+                        try:
+                            fixed_response = response_text + close_attempts
+                            parsed_data = json.loads(fixed_response)
+                            logger.info(f"✅ Fixed JSON by adding: {close_attempts}")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                    else:
+                        # If all fixes fail, return empty data
+                        logger.error(f"❌ Could not fix JSON for chunk {chunk_index}, returning empty data")
+                        return {
+                            "personal_info": {},
+                            "social_links": {},
+                            "experience": [],
+                            "education": [],
+                            "skills": [],
+                            "certifications": [],
+                            "awards": []
+                        }
+                else:
+                    # If response ends with } but still can't parse, return empty
+                    logger.error(f"❌ JSON parsing failed for chunk {chunk_index}, returning empty data")
+                    return {
+                        "personal_info": {},
+                        "social_links": {},
+                        "experience": [],
+                        "education": [],
+                        "skills": [],
+                        "certifications": [],
+                        "awards": []
+                    }
             
             # Detailed logging of extracted data
             experiences = parsed_data.get('experience', [])

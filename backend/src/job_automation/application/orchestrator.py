@@ -12,8 +12,7 @@ from ..core.agents.job_extraction_agent import JobExtractionAgent
 from ..core.agents.job_matching_agent import JobMatchingAgent
 from ..infrastructure.browser.browser_controller import BrowserController
 from ..infrastructure.clients.openai_client import OpenAIClient
-
-logger = logging.getLogger(__name__)
+.getLogger(__name__)
 
 class JobDiscoveryOrchestrator:
     """
