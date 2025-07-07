@@ -1,0 +1,35 @@
+# Application Agent Dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+
+# Database
+supabase==2.3.0
+psycopg2-binary==2.9.9
+
+# Browser Automation
+playwright==1.40.0
+
+# AI and NLP
+openai==1.6.1
+
+# Document Processing
+pdfplumber==0.10.3
+PyPDF2==3.0.1
+python-docx==1.1.0
+
+# Web and HTTP
+httpx==0.25.2
+aiofiles==23.2.1
+
+# Utilities
+python-dotenv==1.0.0
+asyncio==3.4.3
+
+# Logging and Monitoring
+structlog==23.2.0
+
+# File handling
+pillow==10.1.0
+magic==0.4.27

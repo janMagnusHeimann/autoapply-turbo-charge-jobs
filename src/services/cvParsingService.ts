@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { UserService } from './userService';
+import { apiConfig } from '@/config/apiConfig';
 
 export interface ParsedCVData {
   personalInfo: {
@@ -55,8 +56,8 @@ export class CVParsingService {
     try {
       console.log('🔄 Processing CV file via dedicated CV API...');
       
-      // Use dedicated CV API on port 8001
-      const cvApiUrl = import.meta.env.VITE_CV_API_BASE_URL || 'http://localhost:8001';
+      // Use dedicated CV API with secure configuration
+      const cvApiUrl = apiConfig.getCVApiUrl('');
       
       let cvText = '';
       
@@ -69,7 +70,7 @@ export class CVParsingService {
         const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         
         // Extract text using backend PDF extraction
-        const extractResponse = await fetch(`${cvApiUrl}/extract-pdf-text`, {
+        const extractResponse = await fetch(apiConfig.getCVApiUrl('extractPdfText'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -102,8 +103,8 @@ export class CVParsingService {
         throw new Error('Insufficient text extracted from file. Please ensure the file contains readable text.');
       }
       
-      // Process the extracted text with OpenAI
-      const response = await fetch(`${cvApiUrl}/process`, {
+      // Process the extracted text via backend API
+      const response = await fetch(apiConfig.getCVApiUrl('process'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,9 +143,7 @@ export class CVParsingService {
    */
   static async listCVBackups(userId: string): Promise<{ success: boolean; backups?: any[]; error?: string }> {
     try {
-      const cvApiUrl = import.meta.env.VITE_CV_API_BASE_URL || 'http://localhost:8001';
-      
-      const response = await fetch(`${cvApiUrl}/list-cv-backups/${userId}`, {
+      const response = await fetch(`${apiConfig.getConfig().cvApi.baseUrl}/list-cv-backups/${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -183,9 +182,7 @@ export class CVParsingService {
    */
   static async restoreCVBackup(userId: string, backupTimestamp: string): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const cvApiUrl = import.meta.env.VITE_CV_API_BASE_URL || 'http://localhost:8001';
-      
-      const response = await fetch(`${cvApiUrl}/restore-cv-backup`, {
+      const response = await fetch(apiConfig.getCVApiUrl('restoreBackup'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -230,7 +227,7 @@ export class CVParsingService {
     // Use the existing private method
     return await this.extractTextFromFile(file);
   }
-  private static readonly OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+  // OpenAI API key removed from frontend for security - all AI processing done on backend
 
   /**
    * Parse a CV file (PDF or text) and extract structured data
@@ -288,7 +285,7 @@ export class CVParsingService {
         const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         
         // Send to backend for proper PDF text extraction
-        const response = await fetch('http://localhost:8001/extract-pdf-text', {
+        const response = await fetch(apiConfig.getCVApiUrl('extractPdfText'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -364,134 +361,7 @@ export class CVParsingService {
     throw new Error('Unsupported file type. Please upload a PDF or text file.');
   }
 
-  /**
-   * Parse extracted text using OpenAI to structure the data
-   */
-  private static async parseTextWithAI(text: string): Promise<ParsedCVData> {
-    if (!this.OPENAI_API_KEY) {
-      console.warn('OpenAI API key not found, using fallback parsing');
-      return this.parseTextFallback(text);
-    }
-
-    try {
-      const prompt = `
-        Parse the following CV/resume text and extract structured information. Return a JSON object with the following structure:
-        
-        {
-          "personalInfo": {
-            "name": "Full name",
-            "email": "email@domain.com",
-            "phone": "phone number",
-            "location": "city, state/country",
-            "linkedin": "LinkedIn URL",
-            "github": "GitHub URL", 
-            "portfolio": "Portfolio URL",
-            "summary": "Professional summary/objective"
-          },
-          "experiences": [
-            {
-              "company": "Company Name",
-              "position": "Job Title",
-              "startDate": "YYYY-MM",
-              "endDate": "YYYY-MM or Present",
-              "location": "City, State",
-              "description": "Job description",
-              "achievements": "Key achievements",
-              "current": false
-            }
-          ],
-          "education": [
-            {
-              "institution": "University Name",
-              "degree": "Bachelor of Science",
-              "field": "Computer Science",
-              "startDate": "YYYY-MM",
-              "endDate": "YYYY-MM",
-              "gpa": "3.8",
-              "description": "Relevant coursework, honors, etc.",
-              "current": false
-            }
-          ],
-          "skills": ["JavaScript", "Python", "React", "etc"],
-          "certifications": [
-            {
-              "title": "Certification Name",
-              "organization": "Issuing Organization",
-              "date": "YYYY-MM",
-              "description": "Description"
-            }
-          ],
-          "awards": [
-            {
-              "title": "Award Name",
-              "organization": "Organization",
-              "date": "YYYY-MM",
-              "description": "Description"
-            }
-          ]
-        }
-
-        Important:
-        - Extract dates in YYYY-MM format when possible
-        - If current position/education, set "current": true and use "Present" for endDate
-        - For skills, extract technical skills, programming languages, tools, etc.
-        - Group similar information together
-        - If information is not available, omit the field or use empty string
-        - Ensure all fields are properly typed according to the schema
-
-        CV Text:
-        ${text}
-      `;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert CV/resume parser. Extract structured information from CV text and return valid JSON.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 2000
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      
-      if (!content) {
-        throw new Error('No content received from OpenAI');
-      }
-
-      // Parse the JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No valid JSON found in AI response');
-      }
-
-      const parsedData = JSON.parse(jsonMatch[0]);
-      
-      // Validate and clean the parsed data
-      return this.validateAndCleanParsedData(parsedData);
-    } catch (error) {
-      console.warn('AI parsing failed, using fallback:', error);
-      return this.parseTextFallback(text);
-    }
-  }
+  // AI parsing moved to backend for security - OpenAI API key no longer exposed to frontend
 
   /**
    * Fallback text parsing when AI is not available

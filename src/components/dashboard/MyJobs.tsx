@@ -24,13 +24,17 @@ import {
   Sparkles,
   Loader2,
   X,
-  Download
+  Download,
+  Bot,
+  Zap
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { cvGenerationService } from "@/services/cvGenerationService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { ApplicationModal } from "@/components/application/ApplicationModal";
+import { ApplicationProgressTracker } from "@/components/application/ApplicationProgressTracker";
 import { toast } from "sonner";
 import type { CVGeneration } from "@/types/cv";
 
@@ -81,6 +85,11 @@ export const MyJobs = () => {
   const [cvPreviewOpen, setCvPreviewOpen] = useState(false);
   const [selectedCvGeneration, setSelectedCvGeneration] = useState<CVGeneration | null>(null);
   const [jobCVs, setJobCVs] = useState<Map<string, CVGeneration>>(new Map());
+  
+  // Application modal state
+  const [applicationModalOpen, setApplicationModalOpen] = useState(false);
+  const [selectedJobForApplication, setSelectedJobForApplication] = useState<JobOpportunity | null>(null);
+  const [activeApplications, setActiveApplications] = useState<Map<string, string>>(new Map()); // job_id -> application_id
 
   useEffect(() => {
     if (user) {
@@ -395,6 +404,34 @@ export const MyJobs = () => {
     }
   };
 
+  const handleApplyNow = (job: JobOpportunity) => {
+    setSelectedJobForApplication(job);
+    setApplicationModalOpen(true);
+  };
+
+  const handleApplicationStarted = (applicationId: string) => {
+    if (selectedJobForApplication) {
+      setActiveApplications(prev => new Map(prev.set(selectedJobForApplication.id, applicationId)));
+      toast.success("🤖 AI Application Started", {
+        description: `Application process started for ${selectedJobForApplication.company}`
+      });
+    }
+  };
+
+  const handleApplicationComplete = (status: any) => {
+    if (selectedJobForApplication) {
+      setActiveApplications(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(selectedJobForApplication.id);
+        return newMap;
+      });
+    }
+  };
+
+  const handleApplicationError = (error: string) => {
+    console.error('Application error:', error);
+  };
+
   const filteredJobs = displayDiscoveredJobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          job.company.toLowerCase().includes(searchQuery.toLowerCase());
@@ -704,6 +741,19 @@ export const MyJobs = () => {
                       </div>
                     )}
                     
+                    {/* Application Progress Tracker */}
+                    {activeApplications.has(job.id) && (
+                      <div className="border-t border-gray-800 pt-4">
+                        <ApplicationProgressTracker
+                          applicationId={activeApplications.get(job.id)!}
+                          jobTitle={job.title}
+                          company={job.company}
+                          onComplete={handleApplicationComplete}
+                          onError={handleApplicationError}
+                        />
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between pt-4">
                       <div className="flex gap-2">
                         <Button
@@ -734,6 +784,27 @@ export const MyJobs = () => {
                             </>
                           )}
                         </Button>
+                        {/* AI Apply Now Button */}
+                        {activeApplications.has(job.id) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-blue-900 text-blue-300 border-blue-600 hover:bg-blue-800"
+                            disabled
+                          >
+                            <Bot className="w-4 h-4 mr-2" />
+                            AI Applying...
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
+                            onClick={() => handleApplyNow(job)}
+                          >
+                            <Zap className="w-4 h-4 mr-2" />
+                            Apply with AI
+                          </Button>
+                        )}
                       </div>
                       
                       <div className="text-sm text-gray-400">
@@ -940,6 +1011,14 @@ export const MyJobs = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Application Modal */}
+      <ApplicationModal
+        open={applicationModalOpen}
+        onOpenChange={setApplicationModalOpen}
+        job={selectedJobForApplication}
+        onApplicationStarted={handleApplicationStarted}
+      />
     </div>
   );
 };

@@ -209,7 +209,7 @@ export class GitHubService {
       if (EncryptionService.isEncryptionSupported()) {
         try {
           encryptedToken = await EncryptionService.encrypt(accessToken, userId);
-          console.log('✅ GitHub token encrypted successfully');
+          // Token encrypted successfully
         } catch (encryptionError) {
           console.warn('⚠️ Token encryption failed, falling back to unencrypted storage:', encryptionError);
           // Fall back to storing without encryption if encryption fails
@@ -267,7 +267,7 @@ export class GitHubService {
         try {
           const encryptedData = JSON.parse(data.github_access_token);
           const decryptedToken = await EncryptionService.decrypt(encryptedData, userId);
-          console.log('✅ GitHub token decrypted successfully');
+          // Token decrypted successfully
           return decryptedToken;
         } catch (decryptionError) {
           console.error('❌ Failed to decrypt GitHub token:', decryptionError);

@@ -24,11 +24,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cd backend/cv_api && pip install -r requirements.txt` - Install CV API dependencies
 - CV API serves on port 8001 with endpoints: `/process`, `/health`, `/status`
 
+### Application Agent API (AI-Powered Job Applications)
+- `npm run backend:agent` - Start Application Agent API (port 8002)
+- `cd backend/application_agent && pip install -r requirements.txt` - Install Application Agent dependencies
+- Application Agent serves on port 8002 with endpoints: `/api/apply/start`, `/api/apply/status`, `/api/apply/cv/upload`
+- Features: Automated form filling, CV selection, real-time progress tracking, AI-powered application submission
+
 ### Full Stack Development
 - `npm run dev:full` - Start both frontend and backend
 - `npm run dev:unified` - Start unified system (frontend + unified backend)
 - `npm run dev:cv` - Start frontend + CV API only
-- `npm run dev:complete` - Start frontend + job discovery backend + CV API (all services)
+- `npm run dev:agent` - Start frontend + Application Agent only
+- `npm run dev:complete` - Start frontend + job discovery backend + CV API + Application Agent (all services)
 - `docker-compose -f docker-compose.dev.yml up` - Start with Docker
 
 ### Database Operations
@@ -77,12 +84,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `githubService.ts` - GitHub integration and repository analysis
 - `googleScholarService.ts` - Academic publication integration
 - `cvGenerationService.ts` - Dynamic CV/resume generation
+- `applicationService.ts` - Application Agent API integration
+- `cvSelectionService.ts` - CV selection and upload management
 - `supabaseService.ts` - Database operations wrapper
 
 #### Backend Architecture (`backend/src/job_automation/`)
 - **Application Layer**: Web search job service, orchestrators
 - **Core Domain**: Agents (web search, job matching), models (user preferences, job listings)
 - **Infrastructure**: OpenAI client, Supabase client, browser automation, API routes
+
+#### Application Agent System (`backend/application_agent/`)
+- **ApplicationAgent**: Main AI agent orchestrator for automated job applications
+- **FormAnalysisService**: AI-powered form structure analysis and field detection
+- **CVSelectionService**: CV management (generated vs uploaded) and data preparation
+- **BrowserFormFiller**: Playwright-based intelligent form filling with AI guidance
+- **ApplicationTrackingService**: Real-time progress tracking and application history
 
 #### Authentication System
 - **Production**: Supabase Auth with email/password and GitHub OAuth
@@ -145,6 +161,29 @@ Key tables and relationships:
 - GitHub API for repository analysis
 - Google Scholar for publication scraping
 - Supabase for all data persistence
+
+### Application Agent Features
+
+#### Frontend Components (`src/components/application/`)
+- **ApplicationModal**: Multi-step CV selection and application configuration modal
+- **ApplicationProgressTracker**: Real-time progress tracking with status updates and controls
+- **CVSelectionService**: Frontend service for CV management and validation
+- **ApplicationService**: API client for Application Agent communication
+
+#### Key Features
+- **AI-Powered Form Analysis**: Automatically detects and classifies application form fields
+- **Intelligent CV Selection**: Choose between AI-generated or uploaded CVs for each application
+- **Automated Form Filling**: Browser automation with AI-guided field mapping
+- **Real-time Progress Tracking**: Live updates with WebSocket-like polling
+- **Application History**: Complete tracking with success rates and analytics
+- **Error Handling & Recovery**: Graceful failure handling with manual fallbacks
+
+#### Database Schema Extensions
+- `application_attempts` - Complete application attempt tracking
+- `uploaded_cvs` - User-uploaded CV file management
+- `form_templates` - Analyzed form patterns for reuse and optimization
+- `application_screenshots` - Visual records for debugging and review
+- `application_logs` - Detailed logging for troubleshooting
 
 ### Testing Strategy
 - **Mock Tests**: Structure validation, always passing
