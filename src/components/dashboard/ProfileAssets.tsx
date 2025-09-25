@@ -688,9 +688,24 @@ export const ProfileAssets = () => {
     }
   };
 
+  const formatUploadTime = (timestamp: string) => {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    // Format: "Dec 25, 2025 at 3:45 PM"
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    
+
     // Handle various date formats from CV extraction
     // Examples: "Apr 2025", "2025-04", "2025", "April 2025", "2025-04-15"
     try {
@@ -1263,7 +1278,7 @@ export const ProfileAssets = () => {
                             <div className="flex items-center gap-4 text-sm text-gray-400">
                               <span>{(cv.file_size / 1024 / 1024).toFixed(2)} MB</span>
                               <span>•</span>
-                              <span>Uploaded {new Date(cv.created_at).toLocaleDateString()}</span>
+                              <span>Uploaded on {formatUploadTime(cv.created_at)}</span>
                               {cv.extraction_status === 'ai_processed' && (
                                 <>
                                   <span>•</span>
