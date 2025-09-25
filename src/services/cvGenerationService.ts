@@ -3,20 +3,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { jobAnalysisService } from './jobAnalysisService';
 import { CVDocument, CV_TEMPLATES } from './pdfTemplates';
 import { UserService } from './userService';
-import type { 
-  CVData, 
-  CVGeneration, 
-  CVTemplate, 
-  UserProfile, 
-  WorkExperience, 
+import type {
+  CVData,
+  CVGeneration,
+  CVTemplate,
+  UserProfile,
+  WorkExperience,
   Education,
-  GitHubProject, 
-  Publication, 
+  GitHubProject,
+  Publication,
   Skill,
   JobAnalysis,
-  ApplicationRecord
+  ApplicationRecord,
+  JobOpportunity
 } from '@/types/cv';
-import type { JobOpportunity } from './autonomousJobAgent';
 
 /**
  * Dynamic CV Generation Service

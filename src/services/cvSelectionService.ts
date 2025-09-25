@@ -26,18 +26,42 @@ export class CVSelectionService {
    */
   static async listUserCVs(userId: string): Promise<CVOption[]> {
     try {
-      const response = await fetch(`${this.API_BASE}${apiConfig.getConfig().applicationAgent.endpoints.listCVs(userId)}`);
+      const url = `${this.API_BASE}${apiConfig.getConfig().applicationAgent.endpoints.listCVs(userId)}`;
+      console.log('CVSelectionService: Fetching CVs from URL:', url);
+      console.log('CVSelectionService: User ID:', userId);
+      
+      const response = await fetch(url);
+      console.log('CVSelectionService: Response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        return data.cvs || [];
+        console.log('CVSelectionService: API response data:', data);
+        const cvs = data.cvs || [];
+        console.log('CVSelectionService: Parsed CVs:', cvs);
+        console.log('CVSelectionService: Number of CVs found:', cvs.length);
+        return cvs;
       } else {
-        console.error('Failed to list user CVs:', response.status);
-        return [];
+        const errorText = await response.text();
+        console.error('CVSelectionService: Failed to list user CVs:', response.status, errorText);
+        
+        if (response.status === 503) {
+          throw new Error('CV service is currently unavailable. Please try again later.');
+        } else if (response.status === 404) {
+          throw new Error('CV service endpoint not found. Please check if the Application Agent service is running.');
+        } else {
+          throw new Error(`Failed to fetch CVs: ${response.status} ${errorText}`);
+        }
       }
     } catch (error) {
-      console.error('CV list fetch failed:', error);
-      return [];
+      console.error('CVSelectionService: CV list fetch failed:', error);
+      
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error('Cannot connect to CV service. Please check if the Application Agent service is running on port 8002.');
+      } else if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error('An unexpected error occurred while fetching CVs.');
+      }
     }
   }
 
@@ -53,9 +77,8 @@ export class CVSelectionService {
     try {
       const formData = new FormData();
       formData.append('cv_file', file);
-      formData.append('user_id', userId);
 
-      const response = await fetch(`${this.API_BASE}${apiConfig.getConfig().applicationAgent.endpoints.uploadCV}`, {
+      const response = await fetch(`${this.API_BASE}${apiConfig.getConfig().applicationAgent.endpoints.uploadCV}?user_id=${encodeURIComponent(userId)}`, {
         method: 'POST',
         body: formData,
       });

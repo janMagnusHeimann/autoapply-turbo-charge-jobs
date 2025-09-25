@@ -141,45 +141,45 @@ async function runTests() {
     allTestsPassed = false;
   }
 
-  // Test 5: Job Crawler Components
-  console.log('\n5️⃣ Testing job crawler components...');
+  // Test 5: Backend Services
+  console.log('\n5️⃣ Testing backend services...');
   try {
-    // Check if crawler files exist
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const crawlerFiles = [
-      'job-crawler/package.json',
-      'job-crawler/src/index.ts',
-      'job-crawler/src/crawler/index.ts',
-      'job-crawler/src/crawler/parsers.ts'
+    // Test the three main backend services
+    const services = [
+      { name: 'Job Discovery API', port: 8000 },
+      { name: 'CV Processing API', port: 8001 },
+      { name: 'Application Agent API', port: 8002 }
     ];
 
-    let missingFiles = [];
-    for (const file of crawlerFiles) {
-      if (!fs.existsSync(file)) {
-        missingFiles.push(file);
+    let workingServices = 0;
+    for (const service of services) {
+      try {
+        const response = await fetch(`http://localhost:${service.port}/health`);
+        if (response.ok) {
+          console.log(`✅ ${service.name} is running (port ${service.port})`);
+          workingServices++;
+        } else {
+          console.log(`❌ ${service.name} returned status ${response.status}`);
+        }
+      } catch (error) {
+        console.log(`❌ ${service.name} is not accessible (port ${service.port})`);
       }
     }
 
-    if (missingFiles.length > 0) {
-      throw new Error(`Missing crawler files: ${missingFiles.join(', ')}`);
+    if (workingServices === services.length) {
+      console.log('✅ All backend services are running');
+      results.push({ test: 'Backend Services', status: 'PASS' });
+    } else {
+      console.log(`⚠️  ${workingServices}/${services.length} services running`);
+      console.log('💡 Run: npm run dev:complete');
+      results.push({ test: 'Backend Services', status: 'PARTIAL', details: `${workingServices}/${services.length} services` });
+      if (workingServices === 0) {
+        allTestsPassed = false;
+      }
     }
-
-    console.log('✅ Job crawler files present');
-    
-    // Test if crawler can be imported (basic syntax check)
-    try {
-      const crawlerModule = await import('../job-crawler/src/types.js').catch(() => null);
-      console.log('✅ Crawler modules can be imported');
-    } catch (error) {
-      console.log('⚠️  Crawler modules not built (run: npm run crawler:install)');
-    }
-
-    results.push({ test: 'Job Crawler', status: 'PASS' });
   } catch (error) {
-    console.error('❌ Job crawler test failed:', error.message);
-    results.push({ test: 'Job Crawler', status: 'FAIL', error: error.message });
+    console.error('❌ Backend services test failed:', error.message);
+    results.push({ test: 'Backend Services', status: 'FAIL', error: error.message });
     allTestsPassed = false;
   }
 
@@ -245,7 +245,7 @@ async function runTests() {
     console.log('\n🔧 Common fixes:');
     console.log('- Missing .env file: cp .env.example .env');
     console.log('- Database setup: npm run db:setup');
-    console.log('- Install crawler: npm run crawler:install');
+    console.log('- Start services: npm run dev:complete');
   }
 
   return allTestsPassed;
@@ -258,8 +258,8 @@ export async function testComponent(component) {
       return testOpenAI();
     case 'database':
       return testDatabase();
-    case 'crawler':
-      return testCrawler();
+    case 'services':
+      return testBackendServices();
     default:
       throw new Error(`Unknown component: ${component}`);
   }
@@ -285,12 +285,29 @@ async function testDatabase() {
   return { success: !error, error: error?.message };
 }
 
-async function testCrawler() {
-  // Basic crawler test - check if files exist and can be imported
-  const fs = await import('fs');
+async function testBackendServices() {
+  // Test backend services health endpoints
+  const services = [
+    { name: 'Job Discovery API', port: 8000 },
+    { name: 'CV Processing API', port: 8001 },
+    { name: 'Application Agent API', port: 8002 }
+  ];
+
+  let workingServices = 0;
+  for (const service of services) {
+    try {
+      const response = await fetch(`http://localhost:${service.port}/health`);
+      if (response.ok) {
+        workingServices++;
+      }
+    } catch (error) {
+      // Service not accessible
+    }
+  }
+
   return { 
-    success: fs.existsSync('job-crawler/src/index.ts'),
-    message: 'Crawler files present'
+    success: workingServices === services.length,
+    message: `${workingServices}/${services.length} services running`
   };
 }
 

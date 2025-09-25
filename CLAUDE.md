@@ -5,116 +5,136 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Common Development Commands
 
 ### Frontend Development
-- `npm run dev` - Start frontend development server (port 8080)
+- `npm run dev` - Start frontend development server (port 5173)
 - `npm run build` - Build production frontend
 - `npm run lint` - Run ESLint
 - `npm run typecheck` - Run TypeScript type checking
-- `npm test` - Run frontend tests
-- `npm run test:quick` - Quick lint and typecheck only
+- `npm run test:quick` - Quick validation (lint + typecheck)
 
 ### Backend Development
 - `npm run backend` - Start Python FastAPI backend (port 8000)
 - `npm run backend:unified` - Start unified backend system
-- `uv run python start.py` - Direct backend startup (from backend/)
-- `uv run pytest` - Run backend tests (from backend/)
-- `uv run pytest tests/test_services.py -v` - Run specific test files
+- `cd backend && uv run python start.py` - Direct backend startup
+- `cd backend && uv run pytest` - Run backend tests
+- `cd backend && uv run pytest tests/test_services.py -v` - Run specific test files
 
-### CV Processing API (Separate Service)
-- `npm run backend:cv` - Start dedicated CV processing API (port 8001)
-- `cd backend/cv_api && pip install -r requirements.txt` - Install CV API dependencies
-- CV API serves on port 8001 with endpoints: `/process`, `/health`, `/status`
-
-### Application Agent API (AI-Powered Job Applications)
+### Service-Specific Commands
+- `npm run backend:cv` - Start CV processing API (port 8001)
 - `npm run backend:agent` - Start Application Agent API (port 8002)
-- `cd backend/application_agent && pip install -r requirements.txt` - Install Application Agent dependencies
-- Application Agent serves on port 8002 with endpoints: `/api/apply/start`, `/api/apply/status`, `/api/apply/cv/upload`
-- Features: Automated form filling, CV selection, real-time progress tracking, AI-powered application submission
-
-### Full Stack Development
-- `npm run dev:full` - Start both frontend and backend
+- `npm run dev:complete` - Start all services (frontend + all backends)
 - `npm run dev:unified` - Start unified system (frontend + unified backend)
-- `npm run dev:cv` - Start frontend + CV API only
-- `npm run dev:agent` - Start frontend + Application Agent only
-- `npm run dev:complete` - Start frontend + job discovery backend + CV API + Application Agent (all services)
-- `docker-compose -f docker-compose.dev.yml up` - Start with Docker
+- `npm run dev:full` - Start main backend + frontend
 
 ### Database Operations
 - `npm run db:setup` - Setup Supabase database
-- `npm run db:local` - Start local Supabase
-- `npm run db:reset` - Reset local database
+- `npm run db:local` - Start local Supabase (npx supabase start)
+- `npm run db:reset` - Reset local database (npx supabase db reset)
 - `npm run db:seed` - Seed database with test data
-
-### Testing Commands
 - `npm run test:system` - System integration tests
-- `npm run test:quick` - Fast validation (lint + typecheck)
-- `cd backend && uv run pytest tests/test_github_integration.py -v` - Test GitHub integration
-- `cd backend && uv run pytest tests/test_supabase_integration.py -v` - Test Supabase integration
+
+### Event-Driven System (Celery)
+- `celery -A celery_app worker --loglevel=info` - Start Celery worker
+- `celery -A celery_app worker --loglevel=info -Q job_discovery.high,job_discovery.low` - Start specific queue workers
+- `celery -A celery_app flower` - Start Flower monitoring dashboard (port 5555)
+- `redis-server` - Start Redis broker (required for Celery)
 
 ## Architecture Overview
+
+### Event-Driven Microservices Pattern
+The application uses an event-driven architecture with Celery for asynchronous task processing:
+
+1. **Job Discovery Service** (Port 8000) - Core job search and matching
+2. **CV Processing Service** (Port 8001) - AI-powered CV generation and analysis
+3. **Application Agent Service** (Port 8002) - Automated form filling and application submission
+4. **Event System** - Celery + Redis for async task processing and event publishing
+
+### Technology Stack
+- **Frontend**: React 18.3 + TypeScript 5.5 + Vite 5.4 + Tailwind CSS + shadcn/ui
+- **Backend**: Python 3.11-3.12 + FastAPI 0.104 + uv package manager
+- **Database**: Supabase (PostgreSQL) with Row Level Security
+- **Message Broker**: Redis + Celery 5.3 for event-driven architecture
+- **AI**: OpenAI GPT-4o/GPT-4o-mini, LangChain 0.1.0 for Application Agent
+- **Automation**: Playwright 1.40 for browser automation
 
 ### Project Structure
 ```
 ├── src/                     # React/TypeScript frontend
-│   ├── components/         # React components (UI, dashboard, auth)
+│   ├── components/         # React components
 │   ├── services/          # Frontend service layer
-│   ├── contexts/          # React contexts (AuthContext)
-│   └── integrations/      # Supabase client configuration
-├── backend/               # Python FastAPI backend
-│   └── src/job_automation/
-│       ├── application/   # High-level services
-│       ├── core/         # Domain logic (agents, models, tools)
-│       └── infrastructure/ # External dependencies (API, clients)
-├── supabase/             # Database migrations and setup
-└── docs/                 # Project documentation
+│   └── contexts/          # React contexts (AuthContext)
+├── backend/               # Main Python backend
+│   ├── src/
+│   │   ├── job_automation/
+│   │   │   ├── application/   # High-level services
+│   │   │   ├── core/         # Domain logic (agents, models)
+│   │   │   └── infrastructure/ # External dependencies
+│   │   └── events/           # Event system (publisher, consumer, schemas)
+│   ├── tasks/             # Celery task definitions
+│   │   ├── job_discovery.py
+│   │   ├── applications.py
+│   │   ├── cv_generation.py
+│   │   └── notifications.py
+│   ├── celery_app.py      # Celery application configuration
+│   └── celery_config.py   # Queue and exchange definitions
+├── backend/cv_api/        # CV processing service
+├── backend/application_agent/ # Application automation service
+│   └── langchain_services/   # LangChain-based services
+└── supabase/             # Database migrations
 ```
 
-### Technology Stack
-- **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + Radix UI
-- **Backend**: Python 3.11+ + FastAPI + Pydantic + uv package manager
-- **Database**: Supabase (PostgreSQL) with real-time features
-- **AI Integration**: OpenAI API for job discovery and matching
-- **Authentication**: Supabase Auth with GitHub OAuth
-- **Deployment**: Docker containers with development/production configs
+## Key Services and Endpoints
 
-### Key Services and Architecture
+### Main Backend API (Port 8000)
+- `POST /api/web-search-job-discovery` - Main job discovery endpoint
+- `GET /api/system/status` - System health and status
+- `POST /api/github-oauth/token` - GitHub OAuth token exchange
 
-#### Frontend Services (`src/services/`)
+### CV Processing API (Port 8001)
+- `POST /process` - Extract structured data from CV
+- `POST /generate-job-specific-cv` - Create tailored CVs
+- `POST /generate-cover-letter` - AI-generated cover letters
+- `POST /extract-pdf-text` - PDF text extraction
+
+### Application Agent API (Port 8002)
+- `POST /api/apply/start` - Initiate automated application
+- `GET /api/apply/status/{application_id}` - Real-time progress tracking
+- `POST /api/apply/cv/upload` - Upload CV files with validation
+- `GET /api/apply/history/{user_id}` - Application history
+
+### Frontend Services (`src/services/`)
 - `unifiedJobDiscoveryService.ts` - Main job discovery orchestrator
-- `userService.ts` - User profile and preferences management
-- `githubService.ts` - GitHub integration and repository analysis
-- `googleScholarService.ts` - Academic publication integration
-- `cvGenerationService.ts` - Dynamic CV/resume generation
-- `applicationService.ts` - Application Agent API integration
-- `cvSelectionService.ts` - CV selection and upload management
-- `supabaseService.ts` - Database operations wrapper
+- `userService.ts` - User profile management
+- `githubService.ts` - GitHub integration
+- `cvGenerationService.ts` - CV generation
+- `applicationService.ts` - Application Agent client
+- `cvSelectionService.ts` - CV selection and upload
 
-#### Backend Architecture (`backend/src/job_automation/`)
-- **Application Layer**: Web search job service, orchestrators
-- **Core Domain**: Agents (web search, job matching), models (user preferences, job listings)
-- **Infrastructure**: OpenAI client, Supabase client, browser automation, API routes
+## Celery Task Queues
 
-#### Application Agent System (`backend/application_agent/`)
-- **ApplicationAgent**: Main AI agent orchestrator for automated job applications
-- **FormAnalysisService**: AI-powered form structure analysis and field detection
-- **CVSelectionService**: CV management (generated vs uploaded) and data preparation
-- **BrowserFormFiller**: Playwright-based intelligent form filling with AI guidance
-- **ApplicationTrackingService**: Real-time progress tracking and application history
+### Queue Configuration
+- **job_discovery.high** - Priority job searches (priority=10)
+- **job_discovery.low** - Background job searches (priority=1)
+- **cv_generation.high** - Urgent CV generation
+- **cv_generation.low** - Batch CV generation
+- **applications.submit** - Application submissions
+- **applications.track** - Application status tracking
+- **notifications** - User notifications (fanout exchange)
+- **analytics** - Data processing and reporting
+- **maintenance** - System cleanup tasks
 
-#### Authentication System
-- **Production**: Supabase Auth with email/password and GitHub OAuth
-- **Development**: Bypass mode with `VITE_BYPASS_AUTH=true`
-- **Context**: `AuthContext.tsx` manages user state, profile, and preferences
+### Task Routing
+Tasks are routed based on priority and type:
+```python
+# High priority job discovery
+discover_jobs.apply_async(args=[user_id], queue='job_discovery.high', priority=10)
 
-### AI Agent System
-The project uses a multi-agent architecture for job automation:
-- **Web Search Agent**: Uses OpenAI to discover jobs through web search
-- **Job Matching Agent**: Matches discovered jobs to user preferences
-- **Career Discovery Agent**: Finds company career pages
-- **Browser Automation**: Playwright for dynamic content (currently disabled in favor of web search)
+# Batch CV generation
+generate_cvs.apply_async(args=[job_ids], queue='cv_generation.low', priority=1)
+```
 
-### Development Environment Setup
+## Development Environment Setup
 
-#### Required Environment Variables
+### Required Environment Variables
 **Frontend (.env.local):**
 ```bash
 VITE_SUPABASE_URL=your_supabase_url
@@ -131,108 +151,134 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 API_HOST=0.0.0.0
 API_PORT=8000
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
 ```
 
-#### Package Management
-- **Frontend**: npm (Node.js 18+)
-- **Backend**: uv (fast Python package manager)
-- **Install all**: `npm run install:deps`
+**Application Agent (backend/application_agent/.env):**
+```bash
+OPENAI_API_KEY=your_openai_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_key
+```
 
-### Database Schema (Supabase)
-Key tables and relationships:
-- `user_profiles` - User personal information and settings
-- `user_preferences` - Job search preferences and criteria
-- `github_repositories` - Connected GitHub repos with descriptions
+### Package Management
+- **Frontend**: npm (package.json)
+- **Backend**: uv with pyproject.toml (includes Celery, Redis, Kombu)
+- **CV API**: pip with requirements.txt (fastapi, openai, pdfplumber)
+- **Application Agent**: pip with requirements.txt (includes LangChain 0.1.0, playwright-stealth)
+
+## Database Schema
+
+Key tables and their purposes:
+- `user_profiles` - User personal information
+- `user_preferences` - Job search preferences
+- `cv_assets` - Structured CV data (experience, education, skills)
+- `github_repositories` - Connected GitHub repos
 - `google_scholar_publications` - Academic publications
 - `job_applications` - Application history and status
-- `cv_generations` - Generated CVs for different applications
+- `cv_generations` - Generated CVs for applications
+- `uploaded_cvs` - User-uploaded CV files
+- `application_attempts` - Application Agent tracking
+- `form_templates` - Analyzed form patterns
 
-### API Endpoints
+## Enhanced Application Agent Architecture
 
-#### Backend API (Port 8000)
-- `GET /health` - System health check
-- `POST /api/web-search-job-discovery` - Main job discovery endpoint
-- `GET /api/system/status` - Detailed system status
-- `POST /api/github-oauth/token` - GitHub OAuth token exchange
-- `GET /docs` - FastAPI auto-generated documentation
+The Application Agent uses enhanced services with LangChain integration:
+- **EnhancedApplicationAgent** (`enhanced_application_agent.py`) - Main orchestrator with state management
+- **EnhancedFormAnalysisService** (`enhanced_form_analysis_service.py`) - AI-powered form field detection using LangChain
+- **EnhancedCVSelectionService** (`enhanced_cv_selection_service.py`) - Intelligent CV selection and validation
+- **EnhancedBrowserFormFiller** (`enhanced_browser_form_filler.py`) - Playwright automation with AI guidance
+- **EnhancedContentGenerationService** (`enhanced_content_generation_service.py`) - Dynamic content generation with LangChain
+- **HumanBehavior** (`human_behavior.py`) - Bot detection evasion techniques
+- **CVAPIClient** (`cv_api_client.py`) - Client for CV processing service
 
-#### Key Integration Points
-- OpenAI API for job search and matching
-- GitHub API for repository analysis
-- Google Scholar for publication scraping
-- Supabase for all data persistence
+### LangChain Services Integration
+Located in `backend/application_agent/langchain_services/`:
+- Advanced prompt templates
+- Chain composition for complex workflows
+- Memory management for context retention
+- Tool integration for form analysis
 
-### Application Agent Features
+## Event-Driven Patterns
 
-#### Frontend Components (`src/components/application/`)
-- **ApplicationModal**: Multi-step CV selection and application configuration modal
-- **ApplicationProgressTracker**: Real-time progress tracking with status updates and controls
-- **CVSelectionService**: Frontend service for CV management and validation
-- **ApplicationService**: API client for Application Agent communication
+### Event Publishing
+```python
+from src.events.publisher import EventPublisher
 
-#### Key Features
-- **AI-Powered Form Analysis**: Automatically detects and classifies application form fields
-- **Intelligent CV Selection**: Choose between AI-generated or uploaded CVs for each application
-- **Automated Form Filling**: Browser automation with AI-guided field mapping
-- **Real-time Progress Tracking**: Live updates with WebSocket-like polling
-- **Application History**: Complete tracking with success rates and analytics
-- **Error Handling & Recovery**: Graceful failure handling with manual fallbacks
+publisher = EventPublisher()
+await publisher.publish_job_discovered(user_id, job_data)
+await publisher.publish_application_submitted(application_id, status)
+```
 
-#### Database Schema Extensions
-- `application_attempts` - Complete application attempt tracking
-- `uploaded_cvs` - User-uploaded CV file management
-- `form_templates` - Analyzed form patterns for reuse and optimization
-- `application_screenshots` - Visual records for debugging and review
-- `application_logs` - Detailed logging for troubleshooting
+### Event Consumption
+```python
+from src.events.consumer import EventConsumer
 
-### Testing Strategy
-- **Mock Tests**: Structure validation, always passing
-- **Integration Tests**: Real API calls with credentials
-- **Docker Tests**: Container health and networking
-- **CI/CD**: GitHub Actions with 3-tier testing approach
+consumer = EventConsumer()
+await consumer.subscribe_to_job_events(callback)
+```
 
-### Common Patterns
+### Event Schemas
+Located in `src/events/schemas.py`:
+- JobDiscoveredEvent
+- ApplicationSubmittedEvent
+- CVGeneratedEvent
+- NotificationEvent
 
-#### Error Handling
-- Frontend services return `{ success: boolean, error?: string }` patterns
-- Backend uses FastAPI exception handling with proper HTTP status codes
-- Async operations use try/catch with comprehensive logging
+## Testing Strategy
+- `npm run test:quick` - Fast validation (lint + typecheck)
+- `npm run test:system` - System integration tests (node supabase/test-system.js)
+- `cd backend && uv run pytest` - Backend unit tests
+- `cd backend && uv run pytest tests/test_github_integration.py -v` - Specific integration tests
+- `cd backend && uv run pytest tests/test_scholar_integration.py -v` - Scholar integration tests
+- `cd backend && uv run pytest tests/test_supabase_integration.py -v` - Database integration tests
+- `cd backend && python test_bot_evasion.py` - Test anti-bot detection measures
 
-#### State Management
-- React Context for authentication and user data
-- Service classes for API interactions
-- Local state with React hooks for component-specific data
+## Common Patterns
 
-#### TypeScript Usage
-- Strict type checking enabled
-- Interface definitions for all API responses
-- Proper typing for Supabase database operations
+### Error Handling
+- Frontend services return `{ success: boolean, error?: string, data?: any }`
+- Backend uses FastAPI exception handling with HTTP status codes
+- Application Agent includes detailed error tracking and recovery
+- Celery tasks implement retry logic with exponential backoff
 
-### Development Workflow
+### AI Integration
+- OpenAI client centralized in each backend service
+- GPT-4o for complex tasks, GPT-4o-mini for simpler operations
+- LangChain for Application Agent's advanced AI features
+- Structured output parsing with Pydantic models
 
-#### Feature Development
-1. Create feature branch from `main`
-2. Run `npm run dev:unified` for full-stack development
-3. Use `npm run test:quick` for fast validation
-4. Test with real data using integration tests when needed
-5. Create PR with proper CI/CD validation
+### Authentication
+- Supabase Auth with email/password and GitHub OAuth
+- Development bypass with `VITE_BYPASS_AUTH=true`
+- RLS policies enforce data security in production
+- Service-to-service auth using service role keys
 
-#### Debugging
-- Frontend: Browser DevTools + React DevTools
-- Backend: FastAPI `/docs` for API testing
-- Database: Supabase Studio dashboard
-- Logs: Check browser console and terminal output
+## Security & Bot Detection Evasion
+
+### Application Agent Security Features
+- **Human-like Behavior**: Random delays, natural mouse movements, typing simulation
+- **Browser Fingerprinting**: Playwright-stealth integration for anti-detection
+- **Rate Limiting**: Built-in delays between applications
+- **Session Management**: Proper cookie and session handling
+- **Error Recovery**: Graceful handling of captchas and security challenges
+
+## Important Notes
+
+### Service Independence
+Each backend service can be developed and deployed independently while sharing the Supabase database. Services communicate via REST APIs and event streams, not direct database access between services.
+
+### Real-time Features
+- Application Agent uses polling for progress tracking
+- Supabase real-time subscriptions available for live updates
+- Celery provides async task status updates
+- WebSocket-like experience without WebSocket complexity
 
 ### Performance Considerations
-- Frontend uses Vite for fast development builds
+- Frontend uses Vite for fast HMR
 - Backend uses uv for fast Python dependency management
 - Database queries optimized with proper indexing
-- API responses cached where appropriate
-- Docker multi-stage builds for production optimization
-
-### Security Notes
-- All API keys stored in environment variables
-- Supabase Row Level Security (RLS) policies enabled
-- GitHub tokens encrypted in database
-- Input validation on all API endpoints
-- CORS properly configured for development/production
+- Application Agent includes rate limiting and retry logic
+- Celery workers scale horizontally for high throughput
+- Redis caching for frequently accessed data

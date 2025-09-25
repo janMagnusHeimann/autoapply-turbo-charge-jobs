@@ -1,10 +1,11 @@
 """
-Web Search Job Discovery Service - Simplified service using OpenAI web search
+Web Search Job Discovery Service - Event-driven service using OpenAI web search
 """
 
 import asyncio
 from typing import List, Dict, Any, Optional, Callable
 import logging
+import uuid
 
 from ..core.agents.web_search_job_agent import WebSearchJobAgent
 from ..infrastructure.clients.openai_client import OpenAIClient
@@ -12,6 +13,21 @@ from ..core.models.user_preferences import UserPreferences
 from ..config import Config
 
 logger = logging.getLogger(__name__)
+
+# Import event system
+try:
+    from ...events import (
+        EventPublisher,
+        get_event_publisher,
+        JobFoundEvent,
+        JobBatchFoundEvent,
+        create_job_found_event,
+        EventPriority
+    )
+    EVENTS_AVAILABLE = True
+except ImportError:
+    logger.warning("Event system not available - running in legacy mode")
+    EVENTS_AVAILABLE = False
 
 class WebSearchJobService:
     """
@@ -28,6 +44,9 @@ class WebSearchJobService:
             max_tokens=config.llm_max_tokens
         )
         self.agent = WebSearchJobAgent(self.openai_client)
+        
+        # Initialize event publisher if available
+        self.event_publisher = get_event_publisher() if EVENTS_AVAILABLE else None
     
     async def discover_jobs_for_company(
         self,
@@ -71,6 +90,14 @@ class WebSearchJobService:
             
             # Convert to expected format for compatibility
             formatted_results = self._format_results(results)
+            
+            # Publish events for discovered jobs (if event system available)
+            if EVENTS_AVAILABLE and self.event_publisher and formatted_results.get('success'):
+                await self._publish_job_events(
+                    user_preferences.skills[0] if user_preferences.skills else 'unknown',  # Use first skill as user_id placeholder
+                    formatted_results,
+                    company
+                )
             
             if progress_callback:
                 progress_callback({"current_operation": "Job discovery completed"})
@@ -200,6 +227,61 @@ class WebSearchJobService:
             'search_queries_used': results.get('search_queries_used', [])
         }
     
+    
+    async def _publish_job_events(self, user_id: str, results: Dict[str, Any], company: Dict[str, str]):
+        """Publish events for discovered jobs"""
+        try:
+            if not self.event_publisher:
+                return
+            
+            matched_jobs = results.get('matched_jobs', [])
+            
+            # Publish batch event if multiple jobs
+            if len(matched_jobs) > 1:
+                batch_event = JobBatchFoundEvent(
+                    user_id=user_id,
+                    company_name=company.get('name', 'Unknown'),
+                    company_id=company.get('id', str(uuid.uuid4())),
+                    total_jobs=len(matched_jobs),
+                    matched_jobs=matched_jobs,
+                    career_page_url=results.get('career_page_url'),
+                    discovery_method='web_search'
+                )
+                await self.event_publisher.publish(batch_event)
+            
+            # Publish individual job events for high-scoring matches
+            for job in matched_jobs:
+                if job.get('match_score', 0) >= 0.7:  # Only publish high-quality matches
+                    job_event = create_job_found_event(user_id, {
+                        'company_name': company.get('name', 'Unknown'),
+                        'company_id': company.get('id', str(uuid.uuid4())),
+                        'job_id': job.get('id', str(uuid.uuid4())),
+                        'title': job.get('title', 'Unknown Title'),
+                        'url': job.get('application_url', '#'),
+                        'description': job.get('description', ''),
+                        'location': job.get('location', 'Not specified'),
+                        'salary_range': job.get('salary_range'),
+                        'match_score': job.get('match_score', 0.5),
+                        'matching_skills': job.get('matching_skills', []),
+                        'requirements': job.get('requirements', []),
+                        'job_type': job.get('job_type'),
+                        'experience_level': job.get('experience_level')
+                    })
+                    
+                    # Set priority based on match score
+                    if job.get('match_score', 0) >= 0.9:
+                        job_event.priority = EventPriority.URGENT
+                    elif job.get('match_score', 0) >= 0.8:
+                        job_event.priority = EventPriority.HIGH
+                    
+                    await self.event_publisher.publish(job_event)
+
+            logger.info(f"Published events for {len(matched_jobs)} jobs from {company.get('name')}")
+
+
+        except Exception as e:
+            logger.error(f"Failed to publish job events: {e}")
+            # Don't fail the main flow if event publishing fails
     
     def is_available(self) -> bool:
         """Check if the service is available"""

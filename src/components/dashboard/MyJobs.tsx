@@ -630,6 +630,27 @@ export const MyJobs = () => {
                             CV Ready
                           </Badge>
                         )}
+                        {/* AI Apply Now Button - moved to header */}
+                        {activeApplications.has(job.id) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-blue-900 text-blue-300 border-blue-600 hover:bg-blue-800"
+                            disabled
+                          >
+                            <Bot className="w-4 h-4 mr-2" />
+                            AI Applying...
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
+                            onClick={() => handleApplyNow(job)}
+                          >
+                            <Zap className="w-4 h-4 mr-2" />
+                            Apply with AI
+                          </Button>
+                        )}
                       </div>
                       
                       <div className="flex items-center gap-4 text-gray-400 mb-3">
@@ -784,27 +805,6 @@ export const MyJobs = () => {
                             </>
                           )}
                         </Button>
-                        {/* AI Apply Now Button */}
-                        {activeApplications.has(job.id) ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="bg-blue-900 text-blue-300 border-blue-600 hover:bg-blue-800"
-                            disabled
-                          >
-                            <Bot className="w-4 h-4 mr-2" />
-                            AI Applying...
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-                            onClick={() => handleApplyNow(job)}
-                          >
-                            <Zap className="w-4 h-4 mr-2" />
-                            Apply with AI
-                          </Button>
-                        )}
                       </div>
                       
                       <div className="text-sm text-gray-400">

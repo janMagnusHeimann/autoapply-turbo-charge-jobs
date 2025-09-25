@@ -1,26 +1,31 @@
 """
-Application Agent Package - AI-powered automated job application service
+Application Agent Package - AI-powered automated job application service with LangChain
 
-This package provides automated job application capabilities including:
-- Form analysis and understanding
-- CV selection and data mapping
-- Intelligent form filling
-- Application submission and tracking
+This package provides enhanced automated job application capabilities including:
+- AI-powered form analysis with LangChain
+- Intelligent CV selection and data mapping
+- Smart form filling with browser automation
+- Real-time application tracking
+- Content generation for cover letters
 """
 
-from .application_agent import ApplicationAgent
-from .form_analysis_service import FormAnalysisService
-from .cv_selection_service import CVSelectionService
+from .enhanced_application_agent import EnhancedApplicationAgent
+from .enhanced_form_analysis_service import EnhancedFormAnalysisService
+from .enhanced_cv_selection_service import EnhancedCVSelectionService
+from .enhanced_browser_form_filler import EnhancedBrowserFormFiller
+from .enhanced_content_generation_service import EnhancedContentGenerationService
 from .application_tracking_service import ApplicationTrackingService
-from .browser_form_filler import BrowserFormFiller
+from .cv_api_client import CVAPIClient
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "AutoApply Team"
 
 __all__ = [
-    "ApplicationAgent",
-    "FormAnalysisService", 
-    "CVSelectionService",
+    "EnhancedApplicationAgent",
+    "EnhancedFormAnalysisService", 
+    "EnhancedCVSelectionService",
+    "EnhancedBrowserFormFiller",
+    "EnhancedContentGenerationService",
     "ApplicationTrackingService",
-    "BrowserFormFiller"
+    "CVAPIClient"
 ]

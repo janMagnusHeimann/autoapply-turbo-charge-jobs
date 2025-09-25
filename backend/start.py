@@ -34,9 +34,9 @@ def main():
     """Main entry point"""
     setup_logging()
     print_startup_banner()
-    
+
     logger = logging.getLogger(__name__)
-    
+
     try:
         # Import and validate configuration
         from job_automation.config import config

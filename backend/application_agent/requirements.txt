@@ -10,9 +10,20 @@ psycopg2-binary==2.9.9
 
 # Browser Automation
 playwright==1.40.0
+playwright-stealth==1.0.6
 
 # AI and NLP
 openai==1.6.1
+
+# LangChain Core
+langchain==0.1.0
+langchain-core==0.1.7
+langchain-openai==0.0.2
+langchain-community==0.0.10
+langchain-experimental==0.0.45
+
+# Semantic Similarity
+sentence-transformers==2.2.2
 
 # Document Processing
 pdfplumber==0.10.3
@@ -20,16 +31,10 @@ PyPDF2==3.0.1
 python-docx==1.1.0
 
 # Web and HTTP
-httpx==0.25.2
+httpx==0.24.1
 aiofiles==23.2.1
 
 # Utilities
 python-dotenv==1.0.0
 asyncio==3.4.3
 
-# Logging and Monitoring
-structlog==23.2.0
-
-# File handling
-pillow==10.1.0
-magic==0.4.27

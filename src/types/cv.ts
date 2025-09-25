@@ -196,6 +196,23 @@ export interface JobAnalysis {
   analysisDate: string;
 }
 
+// Job Opportunity type - used for CV generation
+export interface JobOpportunity {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  description: string;
+  requirements?: string[];
+  preferredQualifications?: string[];
+  responsibilities?: string[];
+  salary?: string;
+  benefits?: string[];
+  applicationDeadline?: string;
+  source?: string;
+  url?: string;
+}
+
 export interface ContentOptimization {
   originalContent: string;
   optimizedContent: string;

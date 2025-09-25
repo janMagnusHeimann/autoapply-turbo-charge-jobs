@@ -9,10 +9,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
-import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestrator";
-import { autonomousJobAgent, type JobOpportunity, type UserProfile } from "@/services/autonomousJobAgent";
-import { unifiedJobDiscoveryService, type JobDiscoveryResult } from "@/services/unifiedJobDiscoveryService";
-import { cvGenerationService } from "@/services/cvGenerationService";
+import { unifiedJobDiscoveryService, type JobDiscoveryResult, type JobListing } from "@/services/unifiedJobDiscoveryService";
+import { CVGenerationService } from "@/services/cvGenerationService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -573,24 +571,41 @@ export const CompanyDirectory = () => {
 
     setApplyingToJob(job.id);
     try {
-      // Generate tailored CV
-      const cv = await aiAgentOrchestrator.generateTailoredCV(
-        userPreferences, 
-        userPreferences, 
-        job, 
-        company
+      // Convert job to JobOpportunity format for CV generation
+      const jobOpportunity = {
+        id: job.id,
+        title: job.title,
+        company: company.name,
+        location: job.location || '',
+        description: job.description || '',
+        requirements: job.requirements,
+        preferredQualifications: job.preferred_qualifications,
+        responsibilities: [],
+        salary: job.salary_range,
+        benefits: [],
+        applicationDeadline: undefined,
+        source: job.source,
+        url: job.job_url
+      };
+
+      // Generate tailored CV using cvGenerationService
+      const cvService = new CVGenerationService();
+      const cv = await cvService.generateCV(
+        user.id,
+        jobOpportunity,
+        'technical' // Default template
       );
-      
+
       // TODO: Implement actual application submission
       // For now, just simulate the process
       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
       toast.success(`Applied to ${job.title} at ${company.name}!`, {
         description: "Your tailored application has been submitted"
       });
-      
+
       setJobDialogOpen(false);
-      
+
     } catch (error) {
       console.error('Error applying to job:', error);
       toast.error("Failed to apply to job");

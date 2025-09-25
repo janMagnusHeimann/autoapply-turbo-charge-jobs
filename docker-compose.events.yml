@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # Redis for Celery message broker and caching
+  redis:
+    image: redis:7-alpine
+    container_name: autoapply-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - autoapply-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # RabbitMQ as alternative message broker (optional, more features)
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: autoapply-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP port
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_VHOST: autoapply
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - autoapply-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flower for Celery monitoring
+  flower:
+    image: mher/flower:2.0
+    container_name: autoapply-flower
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      FLOWER_BASIC_AUTH: admin:admin123  # Change in production
+    depends_on:
+      - redis
+    networks:
+      - autoapply-network
+
+  # PostgreSQL for service-specific databases (if not using Supabase)
+  postgres-events:
+    image: postgres:15-alpine
+    container_name: autoapply-postgres-events
+    ports:
+      - "5433:5432"  # Different port to avoid conflict with Supabase
+    environment:
+      POSTGRES_USER: autoapply
+      POSTGRES_PASSWORD: autoapply123
+      POSTGRES_DB: autoapply_events
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_events_data:/var/lib/postgresql/data
+      - ./scripts/init-event-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - autoapply-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoapply"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: autoapply-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - autoapply-network
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: autoapply-grafana
+    ports:
+      - "3001:3000"  # Different port to avoid conflict
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_INSTALL_PLUGINS: redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - autoapply-network
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: autoapply-jaeger
+    ports:
+      - "6831:6831/udp"  # Thrift compact protocol
+      - "6832:6832/udp"  # Thrift binary protocol
+      - "5778:5778"      # Configuration endpoint
+      - "16686:16686"    # Jaeger UI
+      - "14268:14268"    # Accept thrift directly
+      - "14250:14250"    # Accept gRPC
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+    networks:
+      - autoapply-network
+
+networks:
+  autoapply-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+  postgres_events_data:
+  prometheus_data:
+  grafana_data:

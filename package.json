@@ -10,7 +10,7 @@
         "backend": "cd backend && uv run python start.py",
         "backend:unified": "cd backend && uv run python start_unified.py",
         "backend:cv": "cd backend/cv_api && python main.py",
-        "backend:agent": "cd backend/application_agent && python main.py",
+        "backend:agent": "cd backend && python -m application_agent.main",
         "dev:full": "npm run backend & npm run dev",
         "dev:unified": "npm run backend:unified & npm run dev",
         "dev:cv": "npm run backend:cv & npm run dev",

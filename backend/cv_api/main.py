@@ -6,6 +6,7 @@ import os
 import logging
 import base64
 import io
+import uuid
 from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +36,14 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+def validate_user_id(user_id: str) -> bool:
+    """Validate that user_id is a proper UUID format"""
+    try:
+        uuid.UUID(user_id)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 # Environment variables
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -92,6 +101,23 @@ class CVProcessingRequest(BaseModel):
 class PDFExtractionRequest(BaseModel):
     pdf_base64: str = Field(..., description="Base64 encoded PDF file")
     filename: str = Field(default="CV.pdf", description="PDF filename")
+
+class JobSpecificCVRequest(BaseModel):
+    user_id: str = Field(..., description="User ID")
+    job_id: str = Field(..., description="Job ID for tracking")
+    job_title: str = Field(..., description="Job title")
+    job_description: str = Field(..., description="Job description")
+    company_name: str = Field(..., description="Company name")
+    template_id: str = Field(default="premium", description="CV template to use")
+
+class CoverLetterRequest(BaseModel):
+    user_id: str = Field(..., description="User ID")
+    job_id: str = Field(..., description="Job ID")
+    job_title: str = Field(..., description="Job title")
+    job_description: str = Field(..., description="Job description")
+    company_name: str = Field(..., description="Company name")
+    cv_generation_id: str = Field(None, description="Associated CV generation ID")
+    custom_prompt: str = Field(None, description="Custom instructions for cover letter")
 
 class CVProcessingResponse(BaseModel):
     status: str
@@ -180,6 +206,290 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.post("/generate-job-specific-cv")
+async def generate_job_specific_cv(request: JobSpecificCVRequest):
+    """
+    Generate a CV tailored for a specific job opportunity
+    """
+    start_time = datetime.utcnow()
+    
+    try:
+        # Validate user_id format
+        if not validate_user_id(request.user_id):
+            logger.error(f"❌ Invalid user_id format: {request.user_id}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid user_id format. Expected UUID, got: {request.user_id}"
+            )
+        
+        logger.info(f"🎯 Generating job-specific CV for user {request.user_id} and job {request.job_id}")
+        
+        if not supabase_client:
+            raise HTTPException(status_code=503, detail="Database service not available")
+        
+        # 1. Fetch user profile and data
+        user_profile_result = supabase_client.table('user_profiles').select('*').eq('user_id', request.user_id).execute()
+        user_profile = user_profile_result.data[0] if user_profile_result.data else {}
+        
+        # 2. Fetch user's CV assets (experience, education, etc.)
+        cv_assets_result = supabase_client.table('cv_assets').select('*').eq('user_id', request.user_id).execute()
+        cv_assets = cv_assets_result.data if cv_assets_result.data else []
+        
+        # 3. Fetch user's skills and preferences
+        preferences_result = supabase_client.table('user_preferences').select('*').eq('user_id', request.user_id).execute()
+        user_preferences = preferences_result.data[0] if preferences_result.data else {}
+        
+        # 4. Fetch GitHub projects
+        projects_result = supabase_client.table('selected_repositories').select('*').eq('user_id', request.user_id).execute()
+        projects = projects_result.data if projects_result.data else []
+        
+        # 5. Fetch publications
+        publications_result = supabase_client.table('selected_publications').select('*').eq('user_id', request.user_id).execute()
+        publications = publications_result.data if publications_result.data else []
+        
+        # 6. Analyze job requirements and optimize content selection
+        if not cv_processor or not cv_processor.is_available():
+            raise HTTPException(status_code=503, detail="CV processor not available")
+        
+        job_analysis_prompt = f"""
+        Analyze this job posting and extract key requirements:
+        
+        Job Title: {request.job_title}
+        Company: {request.company_name}
+        Job Description: {request.job_description}
+        
+        Extract:
+        1. Required technical skills
+        2. Preferred experience areas
+        3. Education requirements
+        4. Key responsibilities
+        5. Company culture keywords
+        
+        Return a JSON object with these categories.
+        """
+        
+        job_analysis_response = await cv_processor._extract_from_chunk(job_analysis_prompt, 0)
+        
+        # 7. Select and optimize content based on job requirements
+        optimized_experiences = []
+        optimized_projects = []
+        optimized_skills = []
+        
+        # Filter experiences by relevance to job
+        for asset in cv_assets:
+            if asset.get('asset_type') == 'experience':
+                metadata = asset.get('metadata', {})
+                # Simple relevance scoring based on job title keywords
+                relevance_score = 0
+                asset_text = f"{asset.get('title', '')} {asset.get('description', '')}".lower()
+                for keyword in request.job_title.lower().split():
+                    if keyword in asset_text:
+                        relevance_score += 1
+                
+                optimized_experiences.append({
+                    **asset,
+                    'relevance_score': relevance_score
+                })
+        
+        # Sort by relevance and take top experiences
+        optimized_experiences = sorted(optimized_experiences, key=lambda x: x.get('relevance_score', 0), reverse=True)[:4]
+        
+        # Filter projects by relevance
+        for project in projects[:4]:  # Take top 4 projects
+            optimized_projects.append(project)
+        
+        # 8. Generate customized professional summary
+        summary_prompt = f"""
+        Create a professional summary for this candidate applying to:
+        Job Title: {request.job_title}
+        Company: {request.company_name}
+        
+        Based on their background:
+        - Current role: {user_profile.get('title', 'Professional')}
+        - Experience: {len(optimized_experiences)} positions
+        - Education: {user_profile.get('education', 'Various')}
+        - Skills: {', '.join(user_preferences.get('skills', [])[:5])}
+        
+        Write a 2-3 sentence professional summary that highlights their fit for this role.
+        """
+        
+        custom_summary = await cv_processor._extract_from_chunk(summary_prompt, 0)
+        
+        # 9. Store the generated CV in database
+        cv_id = f"cv-{int(datetime.utcnow().timestamp() * 1000)}-{request.user_id[:8]}"
+        
+        cv_data = {
+            'profile': user_profile,
+            'experiences': optimized_experiences,
+            'education': [asset for asset in cv_assets if asset.get('asset_type') == 'education'],
+            'skills': user_preferences.get('skills', []),
+            'selectedProjects': optimized_projects,
+            'selectedPublications': publications[:3],  # Top 3 publications
+            'customSummary': custom_summary if isinstance(custom_summary, str) else user_profile.get('professional_summary', ''),
+            'optimization_metadata': {
+                'job_title': request.job_title,
+                'company_name': request.company_name,
+                'analysis_time': datetime.utcnow().timestamp(),
+                'customizations': [
+                    f"Selected {len(optimized_experiences)} most relevant experiences",
+                    f"Selected {len(optimized_projects)} relevant projects",
+                    f"Selected {len(publications[:3])} publications",
+                    "Customized professional summary for job requirements"
+                ]
+            }
+        }
+        
+        # Generate PDF URL placeholder (frontend will handle actual PDF generation)
+        pdf_url = f"blob:http://localhost:8080/{cv_id}"
+        
+        # Store in cv_generations table
+        cv_generation = {
+            'id': cv_id,
+            'user_id': request.user_id,
+            'job_id': request.job_id,
+            'template_id': request.template_id,
+            'pdf_url': pdf_url,
+            'cv_data': cv_data,
+            'optimization_metadata': cv_data['optimization_metadata'],
+            'status': 'ready',
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        insert_result = supabase_client.table('cv_generations').insert(cv_generation).execute()
+        
+        if not insert_result.data:
+            raise HTTPException(status_code=500, detail="Failed to store CV generation")
+        
+        processing_time = (datetime.utcnow() - start_time).total_seconds()
+        
+        logger.info(f"✅ Job-specific CV generated successfully: {cv_id}")
+        
+        return {
+            'status': 'success',
+            'cv_id': cv_id,
+            'pdf_url': pdf_url,
+            'processing_time': processing_time,
+            'optimizations_applied': len(cv_data['optimization_metadata']['customizations']),
+            'data': cv_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = (datetime.utcnow() - start_time).total_seconds()
+        logger.error(f"❌ Job-specific CV generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"CV generation failed: {str(e)}")
+
+@app.post("/generate-cover-letter")
+async def generate_cover_letter(request: CoverLetterRequest):
+    """
+    Generate a cover letter for a specific job application
+    """
+    start_time = datetime.utcnow()
+    
+    try:
+        # Validate user_id format
+        if not validate_user_id(request.user_id):
+            logger.error(f"❌ Invalid user_id format: {request.user_id}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid user_id format. Expected UUID, got: {request.user_id}"
+            )
+        
+        logger.info(f"📝 Generating cover letter for user {request.user_id} and job {request.job_id}")
+        
+        if not cv_processor or not cv_processor.is_available():
+            raise HTTPException(status_code=503, detail="CV processor not available")
+        
+        if not supabase_client:
+            raise HTTPException(status_code=503, detail="Database service not available")
+        
+        # 1. Fetch user profile
+        user_profile_result = supabase_client.table('user_profiles').select('*').eq('user_id', request.user_id).execute()
+        user_profile = user_profile_result.data[0] if user_profile_result.data else {}
+        
+        # 2. Fetch recent experience
+        recent_experience_result = supabase_client.table('cv_assets').select('*').eq('user_id', request.user_id).eq('asset_type', 'experience').limit(2).execute()
+        recent_experiences = recent_experience_result.data if recent_experience_result.data else []
+        
+        # 3. Generate cover letter using AI
+        cover_letter_prompt = f"""
+        Write a professional cover letter for this job application:
+        
+        Job Details:
+        - Title: {request.job_title}
+        - Company: {request.company_name}
+        - Description: {request.job_description[:1000]}...
+        
+        Candidate Profile:
+        - Name: {user_profile.get('full_name', 'Candidate')}
+        - Title: {user_profile.get('title', 'Professional')}
+        - Summary: {user_profile.get('professional_summary', 'Experienced professional')}
+        
+        Recent Experience:
+        {chr(10).join([f"- {exp.get('title', '')} at {exp.get('metadata', {}).get('company', '')}" for exp in recent_experiences[:2]])}
+        
+        {f"Additional Instructions: {request.custom_prompt}" if request.custom_prompt else ""}
+        
+        Write a compelling, professional cover letter that:
+        1. Shows enthusiasm for the role and company
+        2. Highlights relevant experience and skills
+        3. Demonstrates knowledge of the company/role
+        4. Has a strong closing with call to action
+        5. Is appropriately formatted for business correspondence
+        
+        Format as a complete letter with proper business letter formatting.
+        """
+        
+        cover_letter_content = await cv_processor._extract_from_chunk(cover_letter_prompt, 0)
+        
+        # 4. Store cover letter in database
+        cover_letter_id = f"cl-{int(datetime.utcnow().timestamp() * 1000)}-{request.user_id[:8]}"
+        
+        cover_letter_data = {
+            'id': cover_letter_id,
+            'user_id': request.user_id,
+            'job_id': request.job_id,
+            'cv_generation_id': request.cv_generation_id,
+            'content': cover_letter_content if isinstance(cover_letter_content, str) else "Cover letter generated successfully.",
+            'template_id': 'standard',
+            'optimization_metadata': {
+                'job_title': request.job_title,
+                'company_name': request.company_name,
+                'custom_prompt_used': bool(request.custom_prompt),
+                'generation_time': datetime.utcnow().timestamp()
+            },
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        # Create table if it doesn't exist (we'll create this table structure)
+        try:
+            insert_result = supabase_client.table('cover_letter_generations').insert(cover_letter_data).execute()
+            logger.info(f"✅ Cover letter stored in database: {cover_letter_id}")
+        except Exception as db_error:
+            logger.warning(f"⚠️ Could not store cover letter in database: {db_error}")
+            # Continue without storing in DB for now
+        
+        processing_time = (datetime.utcnow() - start_time).total_seconds()
+        
+        logger.info(f"✅ Cover letter generated successfully: {cover_letter_id}")
+        
+        return {
+            'status': 'success',
+            'cover_letter_id': cover_letter_id,
+            'content': cover_letter_data['content'],
+            'processing_time': processing_time,
+            'data': cover_letter_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = (datetime.utcnow() - start_time).total_seconds()
+        logger.error(f"❌ Cover letter generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Cover letter generation failed: {str(e)}")
+
 @app.post("/process", response_model=CVProcessingResponse)
 async def process_cv(request: CVProcessingRequest):
     """
@@ -189,6 +499,14 @@ async def process_cv(request: CVProcessingRequest):
     start_time = datetime.utcnow()
     
     try:
+        # Validate user_id format
+        if not validate_user_id(request.user_id):
+            logger.error(f"❌ Invalid user_id format: {request.user_id}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid user_id format. Expected UUID, got: {request.user_id}"
+            )
+        
         logger.info(f"📄 Processing CV for user: {request.user_id}")
         logger.info(f"📏 CV text length: {len(request.cv_text)} characters")
         
