@@ -107,14 +107,16 @@ class APIConfigService {
     return this.config;
   }
 
-  // Helper methods for easy access to full URLs
+  // Helper methods for easy access to full URLs with proper formatting
   public getApplicationAgentUrl(endpoint: keyof APIConfig['applicationAgent']['endpoints'] | string): string {
     const config = this.config.applicationAgent;
     if (typeof endpoint === 'string' && endpoint in config.endpoints) {
       const endpointValue = config.endpoints[endpoint as keyof typeof config.endpoints];
       return `${config.baseUrl}${typeof endpointValue === 'function' ? endpointValue('') : endpointValue}`;
     }
-    return `${config.baseUrl}${endpoint}`;
+    // Ensure proper URL formatting with leading slash for custom endpoints
+    const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${config.baseUrl}${formattedEndpoint}`;
   }
 
   public getCVApiUrl(endpoint: keyof APIConfig['cvApi']['endpoints'] | string): string {
@@ -123,7 +125,9 @@ class APIConfigService {
       const endpointValue = config.endpoints[endpoint as keyof typeof config.endpoints];
       return `${config.baseUrl}${typeof endpointValue === 'function' ? endpointValue('') : endpointValue}`;
     }
-    return `${config.baseUrl}${endpoint}`;
+    // Ensure proper URL formatting with leading slash for custom endpoints
+    const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${config.baseUrl}${formattedEndpoint}`;
   }
 
   public getJobDiscoveryUrl(endpoint: keyof APIConfig['jobDiscovery']['endpoints'] | string): string {
@@ -132,7 +136,9 @@ class APIConfigService {
       const endpointValue = config.endpoints[endpoint as keyof typeof config.endpoints];
       return `${config.baseUrl}${typeof endpointValue === 'function' ? endpointValue('') : endpointValue}`;
     }
-    return `${config.baseUrl}${endpoint}`;
+    // Ensure proper URL formatting with leading slash for custom endpoints
+    const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${config.baseUrl}${formattedEndpoint}`;
   }
 
   // Service health check methods

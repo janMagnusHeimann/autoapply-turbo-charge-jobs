@@ -11,7 +11,7 @@ from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from supabase import create_client, Client
@@ -1217,11 +1217,207 @@ async def list_cv_backups(user_id: str):
             "message": f"Failed to list backups: {str(e)}"
         }
 
+@app.post("/upload-cv")
+async def upload_cv_file(
+    user_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    Upload and store CV file for a user
+    """
+    try:
+        logger.info(f"📤 Uploading CV file for user: {user_id}")
+        logger.info(f"📄 File details: {file.filename}, {file.content_type}, {file.size} bytes")
+
+        # Validate file type
+        allowed_types = ["application/pdf", "text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: PDF, TXT, DOCX")
+
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
+
+        # Generate unique file ID and hash
+        import hashlib
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        file_id = f"{user_id}_{file_hash[:8]}_{int(datetime.utcnow().timestamp())}"
+
+        # Store file in Supabase storage
+        file_path = f"cvs/{user_id}/{file_id}_{file.filename}"
+
+        try:
+            # Upload to Supabase storage
+            storage_response = supabase_client.storage.from_("cv-files").upload(
+                file_path,
+                file_content,
+                {"content-type": file.content_type}
+            )
+
+            # Get public URL
+            file_url = supabase_client.storage.from_("cv-files").get_public_url(file_path)
+
+            logger.info(f"✅ File uploaded to storage: {file_path}")
+
+        except Exception as storage_error:
+            logger.error(f"❌ Storage upload failed: {storage_error}")
+            # Fallback: store as base64 in database
+            import base64
+            file_url = f"data:{file.content_type};base64,{base64.b64encode(file_content).decode()}"
+            logger.warning("⚠️ Using base64 storage as fallback")
+
+        # Create record in uploaded_cvs table
+        cv_record = {
+            "id": file_id,
+            "user_id": user_id,
+            "filename": file.filename,
+            "file_path": file_path,
+            "file_url": file_url,
+            "content_type": file.content_type,
+            "file_size": file_size,
+            "file_hash": file_hash,
+            "extraction_status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        # Insert to database
+        insert_result = supabase_client.table("uploaded_cvs").insert(cv_record).execute()
+
+        if insert_result.data:
+            logger.info(f"✅ CV record created in database: {file_id}")
+
+            # Extract text for processing
+            cv_text = ""
+            if file.content_type == "application/pdf":
+                # Use existing PDF extraction
+                import base64
+                base64_string = base64.b64encode(file_content).decode()
+                extract_response = await extract_pdf_text(PDFExtractionRequest(
+                    pdf_base64=base64_string,
+                    filename=file.filename
+                ))
+                if extract_response.status == "success":
+                    cv_text = extract_response.text
+                    extraction_status = "basic"
+                else:
+                    extraction_status = "failed"
+            else:
+                # Text file
+                cv_text = file_content.decode('utf-8', errors='ignore')
+                extraction_status = "basic"
+
+            # Update extraction status
+            if cv_text:
+                update_result = supabase_client.table("uploaded_cvs").update({
+                    "extracted_data": {"raw_text": cv_text[:5000]},  # Store first 5000 chars
+                    "extraction_status": extraction_status
+                }).eq("id", file_id).execute()
+
+            return {
+                "status": "success",
+                "message": "CV uploaded successfully",
+                "data": {
+                    "cv_id": file_id,
+                    "filename": file.filename,
+                    "file_url": file_url if not file_url.startswith("data:") else None,
+                    "file_size": file_size,
+                    "extraction_status": extraction_status
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create CV record")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ CV upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.get("/user-cvs/{user_id}")
+async def get_user_cvs(user_id: str):
+    """
+    Get all uploaded CVs for a user
+    """
+    try:
+        logger.info(f"📋 Fetching CVs for user: {user_id}")
+
+        # Get CVs from database
+        result = supabase_client.table("uploaded_cvs")\
+            .select("*")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .execute()
+
+        cvs = result.data if result.data else []
+
+        # Filter out base64 URLs for response
+        for cv in cvs:
+            if cv.get("file_url", "").startswith("data:"):
+                cv["file_url"] = None  # Don't send base64 data in list
+
+        logger.info(f"✅ Found {len(cvs)} CVs for user")
+
+        return {
+            "status": "success",
+            "data": cvs
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch user CVs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch CVs: {str(e)}")
+
+@app.delete("/delete-cv/{cv_id}")
+async def delete_cv(cv_id: str):
+    """
+    Delete an uploaded CV
+    """
+    try:
+        logger.info(f"🗑️ Deleting CV: {cv_id}")
+
+        # Get CV record first
+        cv_result = supabase_client.table("uploaded_cvs")\
+            .select("*")\
+            .eq("id", cv_id)\
+            .single()\
+            .execute()
+
+        if not cv_result.data:
+            raise HTTPException(status_code=404, detail="CV not found")
+
+        cv_record = cv_result.data
+
+        # Delete from storage if exists
+        if cv_record.get("file_path") and not cv_record.get("file_url", "").startswith("data:"):
+            try:
+                storage_response = supabase_client.storage.from_("cv-files").remove([cv_record["file_path"]])
+                logger.info(f"✅ Deleted file from storage: {cv_record['file_path']}")
+            except Exception as storage_error:
+                logger.warning(f"⚠️ Could not delete from storage: {storage_error}")
+
+        # Delete from database
+        delete_result = supabase_client.table("uploaded_cvs").delete().eq("id", cv_id).execute()
+
+        if delete_result.data:
+            logger.info(f"✅ CV deleted successfully: {cv_id}")
+            return {
+                "status": "success",
+                "message": "CV deleted successfully"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete CV")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete CV: {e}")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
-    
+
     logger.info(f"🚀 Starting CV Processing API on {API_HOST}:{API_PORT}")
-    
+
     uvicorn.run(
         app,
         host=API_HOST,

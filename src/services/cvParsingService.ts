@@ -48,7 +48,130 @@ export interface ParsedCVData {
   }>;
 }
 
+export interface UploadedCV {
+  id: string;
+  user_id: string;
+  filename: string;
+  file_path: string;
+  file_url: string | null;
+  content_type: string;
+  file_size: number;
+  file_hash: string;
+  extraction_status: 'pending' | 'basic' | 'ai_processed' | 'failed';
+  extracted_data?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+// CV Parsing Service with upload functionality
 export class CVParsingService {
+  /**
+   * Upload CV file to backend and store it
+   */
+  static async uploadCV(userId: string, file: File): Promise<{ success: boolean; error?: string; data?: any }> {
+    try {
+      console.log('📤 Uploading CV file to backend...');
+
+      const formData = new FormData();
+      formData.append('user_id', userId);
+      formData.append('file', file);
+
+      const response = await fetch(apiConfig.getCVApiUrl('upload-cv'), {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || `Upload failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Upload failed');
+      }
+
+      console.log('✅ CV uploaded successfully:', result.data);
+
+      return {
+        success: true,
+        data: result.data
+      };
+
+    } catch (error: any) {
+      console.error('❌ CV upload failed:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to upload CV'
+      };
+    }
+  }
+
+  /**
+   * Get all uploaded CVs for a user
+   */
+  static async getUserCVs(userId: string): Promise<UploadedCV[]> {
+    try {
+      console.log('📋 Fetching user CVs...');
+
+      const response = await fetch(apiConfig.getCVApiUrl(`user-cvs/${userId}`), {
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CVs: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Failed to fetch CVs');
+      }
+
+      return result.data || [];
+
+    } catch (error: any) {
+      console.error('❌ Failed to fetch user CVs:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete an uploaded CV
+   */
+  static async deleteCV(cvId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('🗑️ Deleting CV:', cvId);
+
+      const response = await fetch(apiConfig.getCVApiUrl(`delete-cv/${cvId}`), {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || `Delete failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Delete failed');
+      }
+
+      console.log('✅ CV deleted successfully');
+
+      return { success: true };
+
+    } catch (error: any) {
+      console.error('❌ Failed to delete CV:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to delete CV'
+      };
+    }
+  }
+
   /**
    * Process CV file using backend service with proper PDF extraction
    */

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X, Upload, FileText, AlertCircle } from "lucide-react";
+import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X, Upload, FileText, AlertCircle, Check, File } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { GitHubService } from "@/services/githubService";
-import { CVParsingService } from "@/services/cvParsingService";
+import { CVParsingService, type UploadedCV } from "@/services/cvParsingService";
 import { SelectiveGitHubIntegration } from "./SelectiveGitHubIntegration";
 import { PublicationsIntegration } from "./PublicationsIntegration";
 import { useToast } from "@/hooks/use-toast";
@@ -97,6 +97,9 @@ export const ProfileAssets = () => {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvUploading, setCvUploading] = useState(false);
   const [cvParseResult, setCvParseResult] = useState<string>('');
+  const [uploadedCVs, setUploadedCVs] = useState<UploadedCV[]>([]);
+  const [loadingCVs, setLoadingCVs] = useState(false);
+  const [selectedCVId, setSelectedCVId] = useState<string | null>(null);
   
   // CV Backup states
   const [showBackupRestore, setShowBackupRestore] = useState(false);
@@ -154,6 +157,7 @@ export const ProfileAssets = () => {
     if (user) {
       fetchAssets();
       fetchSocialLinks();
+      fetchUploadedCVs();
     }
   }, [user]);
 
@@ -165,7 +169,7 @@ export const ProfileAssets = () => {
 
     try {
       const data = await UserService.getUserCVAssets(user.id);
-      
+
       if (data && data.length > 0) {
         setAssets(data);
       } else {
@@ -177,6 +181,26 @@ export const ProfileAssets = () => {
       setAssets([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUploadedCVs = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingCVs(true);
+      const cvs = await CVParsingService.getUserCVs(user.id);
+      setUploadedCVs(cvs);
+
+      // If there are CVs and none selected, select the most recent one
+      if (cvs.length > 0 && !selectedCVId) {
+        setSelectedCVId(cvs[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching uploaded CVs:', error);
+      setUploadedCVs([]);
+    } finally {
+      setLoadingCVs(false);
     }
   };
 
@@ -740,9 +764,18 @@ export const ProfileAssets = () => {
     try {
       setCvUploading(true);
       setCvParseResult('');
-      
+
       console.log('📄 Starting CV upload and parsing...');
-      
+
+      // First, upload the CV file to persist it
+      const uploadResult = await CVParsingService.uploadCV(user.id, cvFile);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Failed to upload CV');
+      }
+
+      console.log('✅ CV uploaded successfully, now processing...');
+
       // Process CV using backend service with proper PDF extraction
       const result = await CVParsingService.processCV(user.id, cvFile);
       
@@ -752,16 +785,17 @@ export const ProfileAssets = () => {
       
       console.log('✅ CV processed successfully via backend');
       
-      // Force refresh the assets and social links with delay to ensure DB updates are complete
+      // Force refresh the assets, social links, and CV list with delay to ensure DB updates are complete
       console.log('🔄 Refreshing component data...');
       setLoading(true);
-      
+
       // Add small delay to ensure backend has finished writing to database
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       await Promise.all([
         fetchAssets(),
-        fetchSocialLinks()
+        fetchSocialLinks(),
+        fetchUploadedCVs()
       ]);
       setLoading(false);
       
@@ -807,11 +841,11 @@ export const ProfileAssets = () => {
 
   const fetchAvailableBackups = async () => {
     if (!user) return;
-    
+
     try {
       setLoadingBackups(true);
       const result = await CVParsingService.listCVBackups(user.id);
-      
+
       if (result.success) {
         setAvailableBackups(result.backups || []);
       } else {
@@ -827,6 +861,50 @@ export const ProfileAssets = () => {
     } finally {
       setLoadingBackups(false);
     }
+  };
+
+  const handleDeleteUploadedCV = async (cvId: string) => {
+    if (!user) return;
+
+    try {
+      const result = await CVParsingService.deleteCV(cvId);
+
+      if (result.success) {
+        toast({
+          title: "CV Deleted",
+          description: "The CV file has been removed from your account",
+        });
+
+        // If this was the selected CV, clear selection
+        if (selectedCVId === cvId) {
+          setSelectedCVId(null);
+        }
+
+        // Refresh the CV list
+        await fetchUploadedCVs();
+      } else {
+        toast({
+          title: "Failed to Delete CV",
+          description: result.error || "Could not delete the CV file",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting CV:', error);
+      toast({
+        title: "Delete Failed",
+        description: "An error occurred while deleting the CV",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSelectUploadedCV = (cvId: string) => {
+    setSelectedCVId(cvId);
+    toast({
+      title: "CV Selected",
+      description: "This CV will be used for job applications",
+    });
   };
 
   const handleRestoreBackup = async (backupTimestamp: string) => {
@@ -1142,6 +1220,86 @@ export const ProfileAssets = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Previously Uploaded CVs Section */}
+          {uploadedCVs.length > 0 && (
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                    <File className="w-5 h-5 text-white" />
+                  </div>
+                  Previously Uploaded CVs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-400 text-sm">
+                  Select a CV to use for job applications or upload a new one above.
+                </p>
+
+                <div className="space-y-3">
+                  {uploadedCVs.map((cv) => (
+                    <div
+                      key={cv.id}
+                      className={`bg-gray-800 p-4 rounded-lg border-2 transition-all ${
+                        selectedCVId === cv.id
+                          ? 'border-green-600 bg-green-900/20'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            selectedCVId === cv.id ? 'bg-green-600' : 'bg-gray-700'
+                          }`}>
+                            {selectedCVId === cv.id ? (
+                              <Check className="w-5 h-5 text-white" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-white font-medium">{cv.filename}</h4>
+                            <div className="flex items-center gap-4 text-sm text-gray-400">
+                              <span>{(cv.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                              <span>•</span>
+                              <span>Uploaded {new Date(cv.created_at).toLocaleDateString()}</span>
+                              {cv.extraction_status === 'ai_processed' && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-green-400">✓ AI Processed</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {selectedCVId !== cv.id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSelectUploadedCV(cv.id)}
+                              className="bg-gray-700 border-gray-600 text-white hover:bg-gray-600"
+                            >
+                              Select
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUploadedCV(cv.id)}
+                            className="text-gray-400 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Instructions */}
           <Card className="bg-gray-900 border-gray-800">
