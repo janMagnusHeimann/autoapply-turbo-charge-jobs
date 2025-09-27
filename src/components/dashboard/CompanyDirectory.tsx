@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
 import { unifiedJobDiscoveryService, type JobDiscoveryResult, type JobListing } from "@/services/unifiedJobDiscoveryService";
-import { CVGenerationService } from "@/services/cvGenerationService";
+import { cvGenerationService } from "@/services/cvGenerationService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,38 +78,41 @@ export const CompanyDirectory = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const { data, error } = await supabase
-          .from('companies')
-          .select('*')
-          .order('name');
-        
-        if (error) {
-          console.error('Error fetching companies:', error);
-          // Fallback to demo data if database not set up
+        // Use backend API instead of direct Supabase call
+        const response = await fetch('http://localhost:8000/api/companies');
+
+        if (!response.ok) {
+          console.error('Error fetching companies from API');
+          // Fallback to demo data if API not available
           setCompanies(getDemoCompanies());
-        } else if (data && data.length > 0) {
-          // Add Trade Republic to existing data if not already present
-          const hasTradeRepublic = data.some(company => company.name === 'Trade Republic');
-          if (!hasTradeRepublic) {
-            const tradeRepublic = {
-              id: 'demo-0',
-              name: 'Trade Republic',
-              description: 'Leading European digital bank and investment platform offering commission-free trading',
-              industry: 'Fintech',
-              size_category: 'large',
-              website_url: 'https://traderepublic.com',
-              headquarters: 'Berlin, Germany',
-              founded_year: 2015
-            };
-            setCompanies([tradeRepublic, ...data]);
-          } else {
-            setCompanies(data);
-          }
         } else {
-          // No companies in database, use demo data
-          const demoData = getDemoCompanies();
-          console.log('Loading demo companies:', demoData);
-          setCompanies(demoData);
+          const result = await response.json();
+          const data = result.companies;
+
+          if (data && data.length > 0) {
+            // Add Trade Republic to existing data if not already present
+            const hasTradeRepublic = data.some(company => company.name === 'Trade Republic');
+            if (!hasTradeRepublic) {
+              const tradeRepublic = {
+                id: 'demo-0',
+                name: 'Trade Republic',
+                description: 'Leading European digital bank and investment platform offering commission-free trading',
+                industry: 'Fintech',
+                size_category: 'large',
+                website_url: 'https://traderepublic.com',
+                headquarters: 'Berlin, Germany',
+                founded_year: 2015
+              };
+              setCompanies([tradeRepublic, ...data]);
+            } else {
+              setCompanies(data);
+            }
+          } else {
+            // No companies in database, use demo data
+            const demoData = getDemoCompanies();
+            console.log('Loading demo companies:', demoData);
+            setCompanies(demoData);
+          }
         }
       } catch (error) {
         console.error('Error fetching companies:', error);
@@ -306,18 +309,26 @@ export const CompanyDirectory = () => {
         industry: newCompany.industry || null,
         size_category: newCompany.size_category || null,
         headquarters: newCompany.headquarters.trim() || null,
-        founded_year: newCompany.founded_year ? parseInt(newCompany.founded_year) : null
+        founded_year: newCompany.founded_year ? parseInt(newCompany.founded_year) : null,
+        created_by: user?.id || null
       };
 
-      const { data, error } = await supabase
-        .from('companies')
-        .insert(companyData)
-        .select()
-        .single();
+      // Use backend API instead of direct Supabase call
+      const response = await fetch('http://localhost:8000/api/companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(companyData),
+      });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add company');
       }
+
+      const result = await response.json();
+      const data = result.company;
 
       // Add to local state
       setCompanies(prev => [data, ...prev]);

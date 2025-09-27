@@ -83,30 +83,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Development bypass mode - load real user data from database
     if (bypassAuth) {
       console.log('🔓 Development mode: Creating authenticated session with real database data');
-      
+
       const targetUserId = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed';
-      
-      // Create mock user session but fetch real data
-      const mockUser = {
-        id: targetUserId,
-        email: 'dev@example.com',
-        user_metadata: { full_name: 'Development User' }
-      } as User;
-      
-      const mockSession = {
-        user: mockUser,
-        access_token: 'mock-token'
-      } as Session;
 
-      // Set user and session first
-      setUser(mockUser);
-      setSession(mockSession);
-
-      // Fetch real profile data from database
-      console.log('Fetching real user profile data from database...');
-      
-      const loadRealUserData = async () => {
+      const setupBypassAuth = async () => {
         try {
+          // First sign out any existing session
+          await supabase.auth.signOut();
+
+          // Sign in anonymously to get a valid auth token
+          const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+
+          let bypassUser: User;
+          let bypassSession: Session;
+
+          if (authError) {
+            console.error('Failed to sign in anonymously:', authError);
+            // Fall back to creating a mock session
+            bypassUser = {
+              id: targetUserId,
+              email: 'dev@example.com',
+              user_metadata: { full_name: 'Development User' }
+            } as User;
+
+            bypassSession = {
+              user: bypassUser,
+              access_token: 'mock-token'
+            } as Session;
+          } else if (authData?.session && authData?.user) {
+            // Use the anonymous session but override the user ID
+            bypassUser = {
+              ...authData.user,
+              id: targetUserId,
+              email: 'dev@example.com',
+              user_metadata: { full_name: 'Development User' }
+            } as User;
+
+            bypassSession = authData.session;
+          } else {
+            throw new Error('No auth data returned');
+          }
+
+          // Set user and session first
+          setUser(bypassUser);
+          setSession(bypassSession);
+
           // Fetch real profile
           const { data: profileData, error: profileError } = await supabase
             .from('user_profiles')
@@ -180,8 +201,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      // Load the real data
-      loadRealUserData();
+      // Execute the bypass auth setup
+      setupBypassAuth();
       return;
     }
 
