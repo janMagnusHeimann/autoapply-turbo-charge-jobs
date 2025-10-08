@@ -1,17 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase, supabaseServiceRole } from '@/integrations/supabase/client';
 
-// Create a service client for development mode that bypasses RLS
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
-
-export const supabaseService = serviceKey 
-  ? createClient(supabaseUrl, serviceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : null;
+// Use the existing service role client from the main client file
+export const supabaseService = supabaseServiceRole;
 
 // Function to save data with service client in development mode
 export async function saveToSupabaseService<T>(

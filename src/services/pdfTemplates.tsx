@@ -309,56 +309,114 @@ const HeaderSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvD
   const styles = getStylesForTemplate(template.type);
   const { profile } = cvData;
 
+  // Helper function to extract clean social media handles/urls
+  const getSocialLinks = () => {
+    const links = [];
+    
+    if (profile.linkedinUrl) {
+      const handle = profile.linkedinUrl.includes('linkedin.com') 
+        ? profile.linkedinUrl.replace(/https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')
+        : profile.linkedinUrl;
+      links.push(`linkedin.com/in/${handle}`);
+    }
+    
+    if (profile.githubUrl) {
+      const handle = profile.githubUrl.includes('github.com')
+        ? profile.githubUrl.replace(/https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '')
+        : profile.githubUrl;
+      links.push(`github.com/${handle}`);
+    }
+    
+    if (profile.portfolioUrl) {
+      const cleanUrl = profile.portfolioUrl.replace(/https?:\/\//, '').replace(/\/$/, '');
+      links.push(cleanUrl);
+    }
+    
+    if (profile.twitterUrl) {
+      const handle = profile.twitterUrl.includes('twitter.com') || profile.twitterUrl.includes('x.com')
+        ? profile.twitterUrl.replace(/https?:\/\/(www\.)?(twitter|x)\.com\//, '').replace(/\/$/, '')
+        : profile.twitterUrl;
+      links.push(`x.com/${handle}`);
+    }
+    
+    if (profile.mediumUrl) {
+      const handle = profile.mediumUrl.includes('medium.com')
+        ? profile.mediumUrl.replace(/https?:\/\/(www\.)?medium\.com\/@?/, '').replace(/\/$/, '')
+        : profile.mediumUrl;
+      links.push(`medium.com/@${handle}`);
+    }
+    
+    return links;
+  };
+
   if (template.type === 'premium') {
     // LaTeX-style centered header
-    const websiteUrl = profile.portfolioUrl || 'www.heimann.ai';
-    const contactLine = [
-      profile.email,
-      profile.linkedinUrl ? 'linkedin.com/in/jan-heimann' : '',
-      profile.githubUrl ? 'github.com/janMagnusHeimann' : ''
-    ].filter(Boolean).join(' | ');
+    let websiteUrl = 'www.portfolio.com';
+    if (profile.portfolioUrl && profile.portfolioUrl.trim()) {
+      websiteUrl = profile.portfolioUrl.replace(/https?:\/\//, '').replace(/\/$/, '').trim();
+      if (!websiteUrl) websiteUrl = 'www.portfolio.com';
+    }
+    
+    const socialLinks = getSocialLinks();
+    const email = (profile.email && profile.email.trim()) ? profile.email : 'contact@example.com';
+    const contactLine = [email, ...socialLinks.slice(0, 2)].filter(item => item && item.trim()).join(' | ') || email;
+    const additionalLinks = socialLinks.slice(2).filter(item => item && item.trim()).join(' | ');
 
     return (
       <View style={premiumStyles.header}>
-        <Text style={premiumStyles.name}>{profile.name}</Text>
+        <Text style={premiumStyles.name}>{profile.name || 'Professional User'}</Text>
         <Text style={premiumStyles.contactLine}>{websiteUrl}</Text>
         <Text style={premiumStyles.contactLine}>{contactLine}</Text>
+        {additionalLinks && (
+          <Text style={premiumStyles.contactLine}>{additionalLinks}</Text>
+        )}
       </View>
     );
   }
 
   if (template.type === 'creative') {
+    const socialLinks = getSocialLinks();
+    
     return (
       <View style={creativeStyles.creativeHeader}>
-        <Text style={[creativeStyles.name, { color: 'white' }]}>{profile.name}</Text>
-        <Text style={[creativeStyles.title, { color: 'white' }]}>{profile.title}</Text>
+        <Text style={[creativeStyles.name, { color: 'white' }]}>{profile.name || 'Professional User'}</Text>
+        <Text style={[creativeStyles.title, { color: 'white' }]}>{profile.title || 'Professional'}</Text>
         <View style={baseStyles.contactInfo}>
-          <Text style={{ color: 'white' }}>{profile.email}</Text>
-          {profile.phone && <Text style={{ color: 'white' }}>{profile.phone}</Text>}
-          <Text style={{ color: 'white' }}>{profile.location}</Text>
+          <Text style={{ color: 'white' }}>{profile.email || 'contact@example.com'}</Text>
+          {profile.phone && profile.phone.trim() && <Text style={{ color: 'white' }}>{profile.phone}</Text>}
+          <Text style={{ color: 'white' }}>{profile.location || 'Location'}</Text>
         </View>
+        {socialLinks.length > 0 && (
+          <View style={{ marginTop: 5 }}>
+            {socialLinks.slice(0, 3).map((link, index) => (
+              <Text key={index} style={{ color: 'white', fontSize: 8 }}>{link}</Text>
+            ))}
+          </View>
+        )}
       </View>
     );
   }
 
+  // Default template with social links
+  const socialLinks = getSocialLinks();
+  
   return (
     <View style={styles.header}>
-      <Text style={styles.name}>{profile.name}</Text>
-      <Text style={styles.title}>{profile.title}</Text>
+      <Text style={styles.name}>{profile.name || 'Professional User'}</Text>
+      <Text style={styles.title}>{profile.title || 'Professional'}</Text>
       <View style={styles.contactInfo}>
-        <Text>{profile.email}</Text>
-        {profile.phone && <Text>{profile.phone}</Text>}
-        <Text>{profile.location}</Text>
+        <Text>{profile.email || 'contact@example.com'}</Text>
+        {profile.phone && profile.phone.trim() && <Text>{profile.phone}</Text>}
+        <Text>{profile.location || 'Location'}</Text>
       </View>
-      {profile.linkedinUrl && (
-        <Link src={profile.linkedinUrl} style={{ fontSize: 9, color: '#0066cc' }}>
-          LinkedIn: {profile.linkedinUrl}
-        </Link>
-      )}
-      {profile.githubUrl && (
-        <Link src={profile.githubUrl} style={{ fontSize: 9, color: '#0066cc' }}>
-          GitHub: {profile.githubUrl}
-        </Link>
+      {socialLinks.length > 0 && (
+        <View style={{ marginTop: 5, flexDirection: 'row', flexWrap: 'wrap' }}>
+          {socialLinks.map((link, index) => (
+            <Text key={index} style={{ fontSize: 8, color: '#0066cc', marginRight: 10, marginBottom: 2 }}>
+              {link}
+            </Text>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -382,7 +440,7 @@ const SummarySection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cv
     <View>
       <Text style={styles.sectionTitle}>Professional Summary</Text>
       <Text style={{ fontSize: 10, lineHeight: 1.5, marginBottom: 10 }}>
-        {cvData.customSummary}
+        {cvData.customSummary || cvData.profile.professionalSummary || 'Experienced professional with expertise in modern technologies.'}
       </Text>
     </View>
   );
@@ -400,23 +458,23 @@ const ExperienceSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({
             {/* Job Title and Date */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <Text style={{ fontSize: 10.2, fontWeight: 'bold' }}>
-                {exp.position}, {exp.company.includes('Part-Time') ? 'Part-Time' : exp.company.includes('Intern') ? 'Intern' : 'Full-Time'}
+                {(exp.position || 'Position').trim()}, {(exp.company || '').includes('Part-Time') ? 'Part-Time' : (exp.company || '').includes('Intern') ? 'Intern' : 'Full-Time'}
               </Text>
               <Text style={{ fontSize: 10.2 }}>
-                {exp.startDate} - {exp.endDate || 'Present'}
+                {exp.startDate || 'Start'} - {exp.endDate || 'Present'}
               </Text>
             </View>
             
             {/* Company Name */}
             <Text style={premiumStyles.companyName}>
-              {exp.company.replace(', Part-Time', '').replace(', Intern', '').replace(', Full-Time', '')}
+              {((exp.company || 'Company').replace(', Part-Time', '').replace(', Intern', '').replace(', Full-Time', '').trim()) || 'Company'}
             </Text>
             
             {/* Achievements */}
-            {exp.achievements.slice(0, 4).map((achievement, achIndex) => (
+            {(exp.achievements || []).slice(0, 4).map((achievement, achIndex) => (
               <View key={achIndex} style={premiumStyles.bulletPoint}>
                 <Text style={premiumStyles.bulletSymbol}>•</Text>
-                <Text style={premiumStyles.bulletText}>{achievement}</Text>
+                <Text style={premiumStyles.bulletText}>{(achievement || 'Achievement').trim() || 'Achievement'}</Text>
               </View>
             ))}
           </View>
@@ -431,20 +489,20 @@ const ExperienceSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({
       {cvData.experiences.slice(0, 4).map((exp, index) => (
         <View key={index} style={{ marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.itemTitle}>{exp.position}</Text>
+            <Text style={styles.itemTitle}>{exp.position || 'Position'}</Text>
             <Text style={styles.itemDate}>
-              {exp.startDate} - {exp.endDate || 'Present'}
+              {exp.startDate || 'Start'} - {exp.endDate || 'Present'}
             </Text>
           </View>
           <Text style={styles.itemSubtitle}>
-            {exp.company} {exp.location && `• ${exp.location}`}
+            {exp.company || 'Company'} {exp.location && `• ${exp.location}`}
           </Text>
-          {exp.achievements.slice(0, 4).map((achievement, achIndex) => (
+          {(exp.achievements || []).slice(0, 4).map((achievement, achIndex) => (
             <Text key={achIndex} style={styles.bullet}>
-              • {achievement}
+              • {achievement || 'Achievement'}
             </Text>
           ))}
-          {exp.technologies.length > 0 && (
+          {(exp.technologies || []).length > 0 && (
             <Text style={{ fontSize: 8, color: '#666', marginTop: 3, fontStyle: 'italic' }}>
               Technologies: {exp.technologies.join(', ')}
             </Text>
@@ -540,7 +598,7 @@ const PublicationsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = 
             <Text style={premiumStyles.publicationBullet}>•</Text>
             <View style={premiumStyles.publicationContent}>
               <Text style={premiumStyles.publicationTitle}>
-                "{pub.title}", <Text style={{ fontStyle: 'italic' }}>{pub.venue}-{pub.year}</Text>: {pub.abstract || 'Cut experimental effort by 15%.'} 
+                "{pub.title || 'Publication Title'}", <Text style={{ fontStyle: 'italic' }}>{pub.venue || 'Venue'}-{pub.year || new Date().getFullYear()}</Text>: {pub.abstract || 'Research contribution and impact.'} 
               </Text>
             </View>
           </View>
@@ -555,10 +613,10 @@ const PublicationsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = 
       {cvData.selectedPublications.map((pub, index) => (
         <View key={index} style={{ marginBottom: 8 }}>
           <Text style={academicStyles.publicationTitle}>
-            {pub.title}
+            {pub.title || 'Publication Title'}
           </Text>
           <Text style={academicStyles.publicationVenue}>
-            {pub.authors.join(', ')} • {pub.venue} • {pub.year}
+            {(pub.authors || []).join(', ')} • {pub.venue || 'Venue'} • {pub.year || new Date().getFullYear()}
           </Text>
           {pub.citationCount && (
             <Text style={academicStyles.citationCount}>
@@ -569,6 +627,73 @@ const PublicationsSection: React.FC<{ cvData: CVData; template: CVTemplate }> = 
             <Link src={pub.url} style={{ fontSize: 8, color: '#0066cc' }}>
               {pub.url}
             </Link>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+};
+
+const EducationSection: React.FC<{ cvData: CVData; template: CVTemplate }> = ({ cvData, template }) => {
+  const styles = getStylesForTemplate(template.type);
+
+  if (cvData.education.length === 0) {
+    return null;
+  }
+
+  if (template.type === 'premium') {
+    return (
+      <View>
+        <Text style={premiumStyles.sectionTitle}>Education</Text>
+        {cvData.education.slice(0, 3).map((edu, index) => (
+          <View key={index} style={premiumStyles.experienceItem}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <Text style={{ fontSize: 10.2, fontWeight: 'bold' }}>
+                {edu.degree || 'Degree'} in {edu.field || 'Field'}
+              </Text>
+              <Text style={{ fontSize: 10.2 }}>
+                {edu.startDate || 'Start'} - {edu.endDate || 'Present'}
+              </Text>
+            </View>
+            <Text style={premiumStyles.companyName}>
+              {edu.institution || 'Institution'}{edu.location ? `, ${edu.location}` : ''}
+            </Text>
+            {edu.gpa && (
+              <Text style={{ fontSize: 10.2, fontStyle: 'italic' }}>GPA: {edu.gpa}</Text>
+            )}
+            {(edu.honors || []).length > 0 && (
+              <View style={premiumStyles.bulletPoint}>
+                <Text style={premiumStyles.bulletSymbol}>•</Text>
+                <Text style={premiumStyles.bulletText}>Honors: {(edu.honors || []).join(', ')}</Text>
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <Text style={styles.sectionTitle}>Education</Text>
+      {cvData.education.slice(0, 3).map((edu, index) => (
+        <View key={index} style={{ marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={styles.itemTitle}>{edu.degree || 'Degree'} in {edu.field || 'Field'}</Text>
+            <Text style={styles.itemDate}>
+              {edu.startDate || 'Start'} - {edu.endDate || 'Present'}
+            </Text>
+          </View>
+          <Text style={styles.itemSubtitle}>
+            {edu.institution || 'Institution'}{edu.location ? ` • ${edu.location}` : ''}
+          </Text>
+          {edu.gpa && (
+            <Text style={{ fontSize: 9, fontStyle: 'italic', marginBottom: 2 }}>GPA: {edu.gpa}</Text>
+          )}
+          {(edu.honors || []).length > 0 && (
+            <Text style={styles.bullet}>
+              • Honors: {(edu.honors || []).join(', ')}
+            </Text>
           )}
         </View>
       ))}
@@ -680,6 +805,10 @@ export const CVDocument: React.FC<{ cvData: CVData; template: CVTemplate }> = ({
 
     if (template.sections.showPublications && cvData.selectedPublications.length > 0) {
       sections.push(<PublicationsSection key="publications" cvData={cvData} template={template} />);
+    }
+
+    if (cvData.education.length > 0) {
+      sections.push(<EducationSection key="education" cvData={cvData} template={template} />);
     }
 
     sections.push(<SkillsSection key="skills" cvData={cvData} template={template} />);

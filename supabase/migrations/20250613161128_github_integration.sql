@@ -78,6 +78,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS github_repository_update_trigger ON cv_assets;
 CREATE TRIGGER github_repository_update_trigger
   BEFORE INSERT OR UPDATE ON cv_assets
   FOR EACH ROW

@@ -80,68 +80,129 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Development bypass mode - but still load real data from Supabase
+    // Development bypass mode - load real user data from database
     if (bypassAuth) {
-      console.log('🔓 Development mode: Creating mock user session with real data');
-      
-      // Create mock user for development with real UUID from Supabase
-      const mockUser = {
-        id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
-        email: 'dev@example.com',
-        user_metadata: { full_name: 'Development User' }
-      } as User;
-      
-      const mockSession = {
-        user: mockUser,
-        access_token: 'mock-token'
-      } as Session;
+      console.log('🔓 Development mode: Creating authenticated session with real database data');
 
-      // Set user and session first
-      setUser(mockUser);
-      setSession(mockSession);
+      const targetUserId = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed';
 
-      // Use the real profile data we created earlier, and create minimal preferences
-      console.log('Using real Supabase profile data with minimal preferences...');
-      
-      const realProfile: UserProfile = {
-        id: '4705463c-6f04-4572-b52c-22d2b800dc5b',
-        user_id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
-        full_name: 'Demo User',
-        email: 'demo@example.com',
-        phone: null,
-        location: 'Berlin, Germany',
-        linkedin_url: null,
-        github_url: null,
-        portfolio_url: null,
-        professional_summary: 'Experienced software developer with expertise in full-stack development',
-        current_title: 'Senior Software Engineer',
-        github_username: 'demouser',
-        created_at: '2025-07-01T22:09:39.821909+00:00',
-        updated_at: '2025-07-01T22:09:39.821909+00:00'
+      const setupBypassAuth = async () => {
+        try {
+          // First sign out any existing session
+          await supabase.auth.signOut();
+
+          // Sign in anonymously to get a valid auth token
+          const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+
+          let bypassUser: User;
+          let bypassSession: Session;
+
+          if (authError) {
+            console.error('Failed to sign in anonymously:', authError);
+            // Fall back to creating a mock session
+            bypassUser = {
+              id: targetUserId,
+              email: 'dev@example.com',
+              user_metadata: { full_name: 'Development User' }
+            } as User;
+
+            bypassSession = {
+              user: bypassUser,
+              access_token: 'mock-token'
+            } as Session;
+          } else if (authData?.session && authData?.user) {
+            // Use the anonymous session but override the user ID
+            bypassUser = {
+              ...authData.user,
+              id: targetUserId,
+              email: 'dev@example.com',
+              user_metadata: { full_name: 'Development User' }
+            } as User;
+
+            bypassSession = authData.session;
+          } else {
+            throw new Error('No auth data returned');
+          }
+
+          // Set user and session first
+          setUser(bypassUser);
+          setSession(bypassSession);
+
+          // Fetch real profile
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', targetUserId)
+            .single();
+
+          if (profileError) {
+            console.error('Error fetching real profile:', profileError);
+            // Fallback to mock data if no real profile exists
+            const fallbackProfile: UserProfile = {
+              id: '4705463c-6f04-4572-b52c-22d2b800dc5b',
+              user_id: targetUserId,
+              full_name: 'Demo User',
+              email: 'demo@example.com',
+              phone: null,
+              location: 'Berlin, Germany',
+              linkedin_url: null,
+              github_url: null,
+              portfolio_url: null,
+              professional_summary: 'Experienced software developer with expertise in full-stack development',
+              current_title: 'Senior Software Engineer',
+              github_username: 'demouser',
+              created_at: '2025-07-01T22:09:39.821909+00:00',
+              updated_at: '2025-07-01T22:09:39.821909+00:00'
+            };
+            setUserProfile(fallbackProfile);
+          } else {
+            console.log('Real profile data loaded:', profileData);
+            setUserProfile(profileData);
+          }
+
+          // Fetch real preferences
+          const { data: prefsData, error: prefsError } = await supabase
+            .from('user_preferences')
+            .select('*')
+            .eq('user_id', targetUserId)
+            .single();
+
+          if (prefsError) {
+            console.error('Error fetching real preferences:', prefsError);
+            // Create minimal fallback preferences
+            const fallbackPreferences: UserPreferences = {
+              id: 'demo-prefs-123',
+              user_id: targetUserId,
+              excluded_companies: [],
+              preferred_locations: [],
+              min_salary: 50000,
+              max_salary: 150000,
+              preferred_remote: 'any',
+              preferred_industries: [],
+              skills: [],
+              preferred_company_sizes: [],
+              preferred_job_types: [],
+              job_types: [],
+              remote_preference: 'any',
+              currency: 'USD',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            setUserPreferences(fallbackPreferences);
+          } else {
+            console.log('Real preferences data loaded:', prefsData);
+            setUserPreferences(prefsData);
+          }
+
+        } catch (error) {
+          console.error('Error loading real user data:', error);
+        } finally {
+          setLoading(false);
+        }
       };
 
-      const minimalPreferences: UserPreferences = {
-        id: 'demo-prefs-123',
-        user_id: 'ebbae036-5dbf-4571-a29d-2318e1ce0eed',
-        excluded_companies: [],
-        preferred_locations: [],
-        min_salary: 50000,
-        max_salary: 150000,
-        preferred_remote: 'any',
-        preferred_industries: [],
-        skills: [],
-        preferred_company_sizes: [],
-        preferred_job_types: [],
-        job_types: [],
-        remote_preference: 'any',
-        currency: 'USD',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      setUserProfile(realProfile);
-      setUserPreferences(minimalPreferences);
-      setLoading(false);
+      // Execute the bypass auth setup
+      setupBypassAuth();
       return;
     }
 

@@ -11,6 +11,13 @@ export interface UserProfile {
   linkedin_url?: string | null;
   github_url?: string | null;
   portfolio_url?: string | null;
+  twitter_url?: string | null;
+  medium_url?: string | null;
+  blog_url?: string | null;
+  youtube_url?: string | null;
+  behance_url?: string | null;
+  dribbble_url?: string | null;
+  stackoverflow_url?: string | null;
   professional_summary?: string | null;
   current_title?: string | null;
   github_username: string | null;
@@ -61,7 +68,28 @@ export interface ComprehensiveUserProfile {
 export class UserService {
   // Get the appropriate client (service role for bypass mode, regular for auth)
   private static getClient() {
-    return supabaseServiceRole || supabase;
+    const isDev = import.meta.env.DEV;
+    const bypassAuth = import.meta.env.VITE_BYPASS_AUTH === 'true';
+    const hasServiceKey = !!import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    
+    console.log('UserService.getClient() called:', {
+      isDev,
+      bypassAuth,
+      hasServiceKey,
+      supabaseServiceRoleExists: !!supabaseServiceRole
+    });
+    
+    if (isDev && bypassAuth && !supabaseServiceRole) {
+      console.error('❌ Development mode with bypass auth enabled but no service role client available!');
+      console.log('Environment check:', {
+        VITE_BYPASS_AUTH: import.meta.env.VITE_BYPASS_AUTH,
+        VITE_SUPABASE_SERVICE_ROLE_KEY: hasServiceKey ? 'SET' : 'NOT SET'
+      });
+    }
+    
+    const client = supabaseServiceRole || supabase;
+    console.log('Using client:', supabaseServiceRole ? 'SERVICE_ROLE' : 'REGULAR');
+    return client;
   }
 
   static async initializeUserData(user: User): Promise<void> {
@@ -104,8 +132,16 @@ export class UserService {
           linkedin_url: null,
           github_url: null,
           portfolio_url: null,
+          twitter_url: null,
+          medium_url: null,
+          blog_url: null,
+          youtube_url: null,
+          behance_url: null,
+          dribbble_url: null,
+          stackoverflow_url: null,
           professional_summary: null,
-          current_title: null
+          current_title: null,
+          years_of_experience: null
         }),
         timeoutPromise
       ]) as any;
@@ -257,7 +293,12 @@ export class UserService {
 
   static async getUserCVAssets(userId: string, assetType?: string) {
     try {
-      let query = supabase
+      console.log('UserService: Fetching CV assets for user:', userId, assetType ? `(type: ${assetType})` : '(all types)');
+      
+      // Use appropriate client based on environment
+      const client = this.getClient();
+      
+      let query = client
         .from('cv_assets')
         .select('*')
         .eq('user_id', userId)
@@ -270,9 +311,11 @@ export class UserService {
       const { data, error } = await query;
 
       if (error) {
+        console.error('UserService: Error fetching CV assets:', error);
         throw error;
       }
 
+      console.log(`UserService: Fetched ${data?.length || 0} CV assets`);
       return data || [];
     } catch (error) {
       console.error('Error fetching CV assets:', error);
@@ -289,7 +332,12 @@ export class UserService {
     external_url?: string;
   }) {
     try {
-      const { data, error } = await supabase
+      console.log('UserService: Creating CV asset:', asset.title, `(type: ${asset.asset_type})`);
+      
+      // Use appropriate client based on environment
+      const client = this.getClient();
+      
+      const { data, error } = await client
         .from('cv_assets')
         .insert({
           user_id: userId,
@@ -299,9 +347,11 @@ export class UserService {
         .single();
 
       if (error) {
+        console.error('UserService: Error creating CV asset:', error);
         throw error;
       }
 
+      console.log('UserService: CV asset created successfully:', data.id);
       return data;
     } catch (error) {
       console.error('Error creating CV asset:', error);
@@ -317,7 +367,10 @@ export class UserService {
     external_url?: string;
   }) {
     try {
-      const { data, error } = await supabase
+      // Use appropriate client based on environment
+      const client = this.getClient();
+      
+      const { data, error } = await client
         .from('cv_assets')
         .update(updates)
         .eq('id', assetId)
@@ -337,7 +390,10 @@ export class UserService {
 
   static async deleteCVAsset(assetId: string) {
     try {
-      const { error } = await supabase
+      // Use appropriate client based on environment
+      const client = this.getClient();
+      
+      const { error } = await client
         .from('cv_assets')
         .delete()
         .eq('id', assetId);

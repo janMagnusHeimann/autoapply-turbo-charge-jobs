@@ -13,7 +13,8 @@ import {
   ChevronUp,
   Briefcase,
   UserCircle,
-  Target
+  Target,
+  FileText
 } from "lucide-react";
 import { DashboardView } from "@/pages/Index";
 import { useState, useEffect } from "react";
@@ -54,6 +55,7 @@ const navigationSections: NavigationSection[] = [
     label: 'Job Discovery',
     icon: Briefcase,
     items: [
+      { id: 'jobs' as DashboardView, label: 'My Jobs', icon: FileText },
       { id: 'agent' as DashboardView, label: 'AI Job Agent', icon: Zap },
       { id: 'companies' as DashboardView, label: 'Company Directory', icon: Building2 },
       { id: 'sources' as DashboardView, label: 'Job Sources', icon: Globe },

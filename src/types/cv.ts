@@ -9,6 +9,13 @@ export interface UserProfile {
   linkedinUrl?: string;
   portfolioUrl?: string;
   githubUrl?: string;
+  twitterUrl?: string;
+  mediumUrl?: string;
+  blogUrl?: string;
+  youtubeUrl?: string;
+  behanceUrl?: string;
+  dribbbleUrl?: string;
+  stackoverflowUrl?: string;
   professionalSummary: string;
   title: string; // Current/desired job title
 }
@@ -24,6 +31,21 @@ export interface WorkExperience {
   achievements: string[]; // Bullet points
   technologies: string[]; // Tech stack used
   relevanceScore?: number; // 0-1, calculated by AI
+}
+
+export interface Education {
+  id: string;
+  institution: string;
+  degree: string;
+  field: string;
+  location?: string;
+  startDate: string;
+  endDate?: string;
+  gpa?: string;
+  honors?: string[];
+  relevantCourses?: string[];
+  activities?: string[];
+  relevanceScore?: number;
 }
 
 export interface GitHubProject {
@@ -70,6 +92,7 @@ export interface Skill {
 export interface CVData {
   profile: UserProfile;
   experiences: WorkExperience[];
+  education: Education[];
   selectedProjects: GitHubProject[];
   selectedPublications: Publication[];
   skills: {
@@ -131,6 +154,7 @@ export interface CVGeneration {
     highlightedSkillsCount: number;
     relevanceScore: number; // Overall job match score
     customizations: string[]; // List of optimizations made
+    missingDataWarnings?: string[]; // Warnings about missing profile data
   };
   status: 'generating' | 'ready' | 'error';
   error?: string;
@@ -170,6 +194,23 @@ export interface JobAnalysis {
   experienceWeights: Record<string, number>; // Experience type importance
   confidence: number; // Analysis confidence (0-1)
   analysisDate: string;
+}
+
+// Job Opportunity type - used for CV generation
+export interface JobOpportunity {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  description: string;
+  requirements?: string[];
+  preferredQualifications?: string[];
+  responsibilities?: string[];
+  salary?: string;
+  benefits?: string[];
+  applicationDeadline?: string;
+  source?: string;
+  url?: string;
 }
 
 export interface ContentOptimization {

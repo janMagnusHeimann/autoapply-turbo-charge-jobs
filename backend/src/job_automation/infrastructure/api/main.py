@@ -12,6 +12,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from supabase import create_client, Client
 
 from ...config import config
 # from ...application.orchestrator import JobDiscoveryOrchestrator, create_orchestrator  # Disabled for web search
@@ -40,6 +41,7 @@ app.add_middleware(
 # Global service instances
 # orchestrator: JobDiscoveryOrchestrator = None  # Disabled for web search
 web_search_service: WebSearchJobService = None
+supabase_client: Client = None
 
 # Request/Response Models
 class JobDiscoveryRequest(BaseModel):
@@ -58,6 +60,18 @@ class GitHubOAuthRequest(BaseModel):
     client_id: str
     code: str
 
+
+class CompanyRequest(BaseModel):
+    name: str = Field(..., description="Company name")
+    description: Optional[str] = Field(None, description="Company description")
+    website_url: Optional[str] = Field(None, description="Company website URL")
+    industry: Optional[str] = Field(None, description="Industry type")
+    size_category: Optional[str] = Field(None, description="Company size category")
+    headquarters: Optional[str] = Field(None, description="Company headquarters location")
+    founded_year: Optional[int] = Field(None, description="Year the company was founded")
+    created_by: Optional[str] = Field(None, description="User ID who created the entry")
+
+
 class JobDiscoveryResponse(BaseModel):
     status: str
     company: str
@@ -73,18 +87,27 @@ class JobDiscoveryResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global web_search_service
-    
+    global web_search_service, supabase_client
+
     logger.info("🚀 Starting Job Discovery API")
-    
+
     try:
+        # Initialize Supabase client with service role key for backend operations
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and supabase_service_key:
+            supabase_client = create_client(supabase_url, supabase_service_key)
+            logger.info("✅ Supabase client initialized")
+        else:
+            logger.warning("⚠️ Supabase credentials not configured")
+
         # Initialize OpenAI client
         openai_client = create_openai_client(
             api_key=config.openai_api_key,
             model=config.openai_model,
             temperature=config.llm_temperature
         )
-        
+
         if not openai_client.is_available():
             logger.warning("⚠️ OpenAI client not available - API will use mock responses")
         
@@ -252,6 +275,80 @@ async def get_demo_user_preferences():
         }
     }
 
+@app.get("/api/companies")
+async def get_companies():
+    """Get all companies from the database"""
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Database service not available")
+
+    try:
+        response = supabase_client.table('companies').select('*').execute()
+        return {"companies": response.data}
+    except Exception as e:
+        logger.error(f"Error fetching companies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/companies")
+async def add_company(company: CompanyRequest):
+    """Add a new company to the database"""
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Database service not available")
+
+    try:
+        # Prepare company data
+        company_data = company.dict(exclude_unset=True)
+
+        # Insert company using service role key (bypasses RLS)
+        response = supabase_client.table('companies').insert(company_data).execute()
+
+        if response.data:
+            return {"success": True, "company": response.data[0]}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add company")
+    except Exception as e:
+        logger.error(f"Error adding company: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/companies/{company_id}")
+async def update_company(company_id: str, company: CompanyRequest):
+    """Update an existing company"""
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Database service not available")
+
+    try:
+        # Prepare update data
+        update_data = company.dict(exclude_unset=True)
+
+        # Update company using service role key
+        response = supabase_client.table('companies').update(update_data).eq('id', company_id).execute()
+
+        if response.data:
+            return {"success": True, "company": response.data[0]}
+        else:
+            raise HTTPException(status_code=404, detail="Company not found")
+    except Exception as e:
+        logger.error(f"Error updating company: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/companies/{company_id}")
+async def delete_company(company_id: str):
+    """Delete a company from the database"""
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Database service not available")
+
+    try:
+        # Delete company using service role key
+        response = supabase_client.table('companies').delete().eq('id', company_id).execute()
+
+        return {"success": True, "message": "Company deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting company: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/github-oauth/token")
 async def github_oauth_token(request: GitHubOAuthRequest):
     """
@@ -309,6 +406,9 @@ async def github_oauth_token(request: GitHubOAuthRequest):
     except Exception as e:
         logger.error(f"GitHub OAuth unexpected error: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+# CV processing has been moved to CV API (port 8001)
+# Use /process endpoint on the CV API for CV processing functionality
 
 if __name__ == "__main__":
     import uvicorn

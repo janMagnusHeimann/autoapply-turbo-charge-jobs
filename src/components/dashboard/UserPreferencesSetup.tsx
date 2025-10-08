@@ -34,9 +34,41 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { UserProfile, UserPreferences, ComprehensiveUserProfile, CVAsset } from "@/services/userService";
 import { UserService } from "@/services/userService";
-import { githubRepoService, type GitHubRepo } from "@/services/githubRepoService";
 import { GitHubService } from "@/services/githubService";
 import { cvAnalysisService, type CVAnalysis } from "@/services/cvAnalysisService";
+
+// Define GitHubRepo type locally since the service was removed
+interface GitHubRepo {
+  id: string;
+  name: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+  url: string;
+  topics: string[];
+  isFork: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Helper function to extract skills from repos
+function extractSkillsFromRepos(repos: GitHubRepo[]): string[] {
+  const skills = new Set<string>();
+
+  repos.forEach(repo => {
+    // Add languages
+    if (repo.language) {
+      skills.add(repo.language);
+    }
+
+    // Add topics as skills
+    repo.topics?.forEach(topic => {
+      skills.add(topic);
+    });
+  });
+
+  return Array.from(skills);
+}
 
 interface UserPreferencesSetupProps {
   open: boolean;
@@ -243,9 +275,9 @@ export const UserPreferencesSetup = ({
       }));
       
       setGithubRepos(convertedRepos);
-      
-      // Extract additional skills from repos using the mock service's skill extraction
-      const repoSkills = githubRepoService.extractSkillsFromRepos(convertedRepos);
+
+      // Extract additional skills from repos using the local function
+      const repoSkills = extractSkillsFromRepos(convertedRepos);
       setSelectedSkills(prev => {
         const combined = [...new Set([...prev, ...repoSkills])];
         return combined;

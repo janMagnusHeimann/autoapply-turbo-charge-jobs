@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus } from "lucide-react";
+import { Search, Building2, X, Eye, EyeOff, ExternalLink, Loader2, Briefcase, Plus, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,9 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
-import { aiAgentOrchestrator, type JobListing } from "@/services/aiAgentOrchestrator";
-import { autonomousJobAgent, type JobOpportunity, type UserProfile } from "@/services/autonomousJobAgent";
-import { unifiedJobDiscoveryService, type JobDiscoveryResult } from "@/services/unifiedJobDiscoveryService";
+import { unifiedJobDiscoveryService, type JobDiscoveryResult, type JobListing } from "@/services/unifiedJobDiscoveryService";
 import { cvGenerationService } from "@/services/cvGenerationService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -29,6 +27,7 @@ interface Company {
   industry: string | null;
   size_category: string | null;
   website_url: string | null;
+  careers_url: string | null;
   headquarters: string | null;
   founded_year: number | null;
 }
@@ -54,10 +53,14 @@ export const CompanyDirectory = () => {
   const [addingCompany, setAddingCompany] = useState(false);
   const [preferencesSetupOpen, setPreferencesSetupOpen] = useState(false);
   const [selectedCompanyForPreferences, setSelectedCompanyForPreferences] = useState<Company | null>(null);
+  const [cvPreviewOpen, setCvPreviewOpen] = useState(false);
+  const [selectedCvGeneration, setSelectedCvGeneration] = useState<CVGeneration | null>(null);
+  const [jobCVs, setJobCVs] = useState<Map<string, CVGeneration>>(new Map());
   const [newCompany, setNewCompany] = useState({
     name: '',
     description: '',
     website_url: '',
+    careers_url: '',
     industry: '',
     size_category: '',
     headquarters: '',
@@ -75,38 +78,41 @@ export const CompanyDirectory = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const { data, error } = await supabase
-          .from('companies')
-          .select('*')
-          .order('name');
-        
-        if (error) {
-          console.error('Error fetching companies:', error);
-          // Fallback to demo data if database not set up
+        // Use backend API instead of direct Supabase call
+        const response = await fetch('http://localhost:8000/api/companies');
+
+        if (!response.ok) {
+          console.error('Error fetching companies from API');
+          // Fallback to demo data if API not available
           setCompanies(getDemoCompanies());
-        } else if (data && data.length > 0) {
-          // Add Trade Republic to existing data if not already present
-          const hasTradeRepublic = data.some(company => company.name === 'Trade Republic');
-          if (!hasTradeRepublic) {
-            const tradeRepublic = {
-              id: 'demo-0',
-              name: 'Trade Republic',
-              description: 'Leading European digital bank and investment platform offering commission-free trading',
-              industry: 'Fintech',
-              size_category: 'large',
-              website_url: 'https://traderepublic.com',
-              headquarters: 'Berlin, Germany',
-              founded_year: 2015
-            };
-            setCompanies([tradeRepublic, ...data]);
-          } else {
-            setCompanies(data);
-          }
         } else {
-          // No companies in database, use demo data
-          const demoData = getDemoCompanies();
-          console.log('Loading demo companies:', demoData);
-          setCompanies(demoData);
+          const result = await response.json();
+          const data = result.companies;
+
+          if (data && data.length > 0) {
+            // Add Trade Republic to existing data if not already present
+            const hasTradeRepublic = data.some(company => company.name === 'Trade Republic');
+            if (!hasTradeRepublic) {
+              const tradeRepublic = {
+                id: 'demo-0',
+                name: 'Trade Republic',
+                description: 'Leading European digital bank and investment platform offering commission-free trading',
+                industry: 'Fintech',
+                size_category: 'large',
+                website_url: 'https://traderepublic.com',
+                headquarters: 'Berlin, Germany',
+                founded_year: 2015
+              };
+              setCompanies([tradeRepublic, ...data]);
+            } else {
+              setCompanies(data);
+            }
+          } else {
+            // No companies in database, use demo data
+            const demoData = getDemoCompanies();
+            console.log('Loading demo companies:', demoData);
+            setCompanies(demoData);
+          }
         }
       } catch (error) {
         console.error('Error fetching companies:', error);
@@ -127,8 +133,20 @@ export const CompanyDirectory = () => {
       industry: 'Fintech',
       size_category: 'large',
       website_url: 'https://n26.com',
+      careers_url: 'https://n26.com/en/careers',
       headquarters: 'Berlin, Germany',
       founded_year: 2013
+    },
+    {
+      id: 'demo-finn',
+      name: 'FINN',
+      description: 'Digital car subscription service offering flexible access to vehicles without traditional ownership',
+      industry: 'Mobility Tech',
+      size_category: 'medium',
+      website_url: 'https://finn.auto',
+      careers_url: 'https://jobs.lever.co/finn',
+      headquarters: 'Munich, Germany',
+      founded_year: 2019
     },
     {
       id: 'demo-0',
@@ -137,6 +155,7 @@ export const CompanyDirectory = () => {
       industry: 'Fintech',
       size_category: 'large',
       website_url: 'https://traderepublic.com',
+      careers_url: 'https://traderepublic.com/en-de/about#career',
       headquarters: 'Berlin, Germany',
       founded_year: 2015
     },
@@ -290,18 +309,26 @@ export const CompanyDirectory = () => {
         industry: newCompany.industry || null,
         size_category: newCompany.size_category || null,
         headquarters: newCompany.headquarters.trim() || null,
-        founded_year: newCompany.founded_year ? parseInt(newCompany.founded_year) : null
+        founded_year: newCompany.founded_year ? parseInt(newCompany.founded_year) : null,
+        created_by: user?.id || null
       };
 
-      const { data, error } = await supabase
-        .from('companies')
-        .insert(companyData)
-        .select()
-        .single();
+      // Use backend API instead of direct Supabase call
+      const response = await fetch('http://localhost:8000/api/companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(companyData),
+      });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add company');
       }
+
+      const result = await response.json();
+      const data = result.company;
 
       // Add to local state
       setCompanies(prev => [data, ...prev]);
@@ -344,6 +371,9 @@ export const CompanyDirectory = () => {
         selectedTemplate
       );
 
+      // Store the generated CV
+      setJobCVs(prev => new Map(prev).set(jobOpportunity.id, cvGeneration));
+
       // Create application record
       const applicationRecord = await cvGenerationService.createApplicationRecord(
         user.id,
@@ -356,20 +386,11 @@ export const CompanyDirectory = () => {
         {
           description: `Tailored CV created with ${cvGeneration.optimizationMetadata.selectedProjectsCount} projects and ${cvGeneration.optimizationMetadata.highlightedSkillsCount} highlighted skills`,
           action: {
-            label: "Download CV",
-            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
-          }
-        }
-      );
-
-      // Show optimization details
-      toast.info(
-        `CV Optimization Details`,
-        {
-          description: `Relevance Score: ${Math.round(cvGeneration.optimizationMetadata.relevanceScore * 100)}% • Template: ${availableTemplates.find(t => t.id === selectedTemplate)?.name}`,
-          action: {
             label: "View CV",
-            onClick: () => window.open(cvGeneration.pdfUrl, '_blank')
+            onClick: () => {
+              setSelectedCvGeneration(cvGeneration);
+              setCvPreviewOpen(true);
+            }
           }
         }
       );
@@ -385,6 +406,18 @@ export const CompanyDirectory = () => {
     } finally {
       setGeneratingCV(null);
     }
+  };
+
+  const handleViewCV = (cvGeneration: CVGeneration) => {
+    setSelectedCvGeneration(cvGeneration);
+    setCvPreviewOpen(true);
+  };
+
+  const handleDownloadCV = (cvGeneration: CVGeneration) => {
+    window.open(cvGeneration.pdfUrl, '_blank');
+    toast.success("CV Downloaded", {
+      description: "The CV has been opened in a new tab for download"
+    });
   };
 
   const handleDiscoverJobs = async (company: Company) => {
@@ -473,33 +506,57 @@ export const CompanyDirectory = () => {
           source: 'real_scraping' as const
         }));
 
-        setJobOpportunities(prev => new Map(prev.set(company.id, jobOpportunities)));
-        setSelectedCompany(company);
-        setJobDialogOpen(true);
+        // Store jobs in localStorage and navigate to MyJobs page
+        const jobsForMyJobsPage = jobOpportunities.map(job => ({
+          id: job.id,
+          title: job.title,
+          company: company.name,
+          location: job.location,
+          salary: job.salary_range,
+          type: 'Full-time',
+          description: job.description,
+          requirements: job.requirements,
+          postedDate: new Date().toISOString().split('T')[0],
+          applicationUrl: job.url,
+          matchScore: Math.round(job.confidence_score * 100),
+          isNew: true,
+          source: 'Company Directory',
+          tags: job.requirements?.slice(0, 3) || []
+        }));
+        
+        // Store the jobs with current timestamp for "new" indicators
+        localStorage.setItem('discoveredJobs', JSON.stringify(jobsForMyJobsPage));
+        localStorage.setItem('discoveredJobsTimestamp', Date.now().toString());
+        localStorage.setItem('selectedCompany', company.name);
         
         const relevantJobs = jobOpportunities.filter(job => job.confidence_score > 0.5);
         
         toast.success(`🎉 AI job discovery complete!`, {
-          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Powered by AI web search`
+          description: `Found ${result.total_jobs} jobs, ${relevantJobs.length} highly relevant • Navigating to My Jobs`,
+          action: {
+            label: "View Jobs",
+            onClick: () => {
+              // Trigger navigation to MyJobs
+              window.dispatchEvent(new CustomEvent('navigateToMyJobs', { 
+                detail: { companyFilter: company.name } 
+              }));
+            }
+          }
         });
 
-        // Show workflow summary
+        // Automatically navigate to MyJobs page
         setTimeout(() => {
-          toast.info(`🔗 Search Summary`, {
-            description: `Used ${result.agent_system_used} agent system • Execution time: ${Math.round(result.execution_time)}s`,
-            action: {
-              label: "View Jobs",
-              onClick: () => setJobDialogOpen(true)
-            }
-          });
-        }, 1000);
+          window.dispatchEvent(new CustomEvent('navigateToMyJobs', { 
+            detail: { companyFilter: company.name } 
+          }));
+        }, 1500);
       } else {
         // Check if this is a search failure vs no matching jobs
         if (result.total_jobs === 0) {
-          toast.error("Job search failed", {
+          toast.info("No job listings found", {
             description: result.career_page_url ? 
-              `Unable to find job listings on ${company.name}'s career page. The site may use dynamic loading or require authentication.` :
-              `Could not find or access ${company.name}'s career page. Please verify the company website.`
+              `${company.name} may not have active job postings at the moment, or their careers page requires manual browsing. Try checking their website directly.` :
+              `Could not locate ${company.name}'s careers page. They may not be actively hiring or use external recruitment platforms.`
           });
         } else {
           toast.warning("No suitable jobs found", {
@@ -525,24 +582,41 @@ export const CompanyDirectory = () => {
 
     setApplyingToJob(job.id);
     try {
-      // Generate tailored CV
-      const cv = await aiAgentOrchestrator.generateTailoredCV(
-        userPreferences, 
-        userPreferences, 
-        job, 
-        company
+      // Convert job to JobOpportunity format for CV generation
+      const jobOpportunity = {
+        id: job.id,
+        title: job.title,
+        company: company.name,
+        location: job.location || '',
+        description: job.description || '',
+        requirements: job.requirements,
+        preferredQualifications: job.preferred_qualifications,
+        responsibilities: [],
+        salary: job.salary_range,
+        benefits: [],
+        applicationDeadline: undefined,
+        source: job.source,
+        url: job.job_url
+      };
+
+      // Generate tailored CV using cvGenerationService
+      const cvService = new CVGenerationService();
+      const cv = await cvService.generateCV(
+        user.id,
+        jobOpportunity,
+        'technical' // Default template
       );
-      
+
       // TODO: Implement actual application submission
       // For now, just simulate the process
       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
       toast.success(`Applied to ${job.title} at ${company.name}!`, {
         description: "Your tailored application has been submitted"
       });
-      
+
       setJobDialogOpen(false);
-      
+
     } catch (error) {
       console.error('Error applying to job:', error);
       toast.error("Failed to apply to job");
@@ -572,7 +646,8 @@ export const CompanyDirectory = () => {
       'Cybersecurity': '🔒',
       'Education': '📚',
       'Retail Tech': '🛒',
-      'Gaming': '🎮'
+      'Gaming': '🎮',
+      'Mobility Tech': '🚗'
     };
     return industry ? industryMap[industry] || '🏢' : '🏢';
   };
@@ -871,6 +946,7 @@ export const CompanyDirectory = () => {
                     <SelectItem value="Education" className="text-white hover:bg-gray-700">Education</SelectItem>
                     <SelectItem value="Retail Tech" className="text-white hover:bg-gray-700">Retail Tech</SelectItem>
                     <SelectItem value="Gaming" className="text-white hover:bg-gray-700">Gaming</SelectItem>
+                    <SelectItem value="Mobility Tech" className="text-white hover:bg-gray-700">Mobility Tech</SelectItem>
                     <SelectItem value="Other" className="text-white hover:bg-gray-700">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1032,34 +1108,94 @@ export const CompanyDirectory = () => {
             )}
 
             {/* Job Opportunities */}
-            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => (
-              <Card key={job.id} className="bg-white border-gray-200 shadow-sm">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-gray-900 text-lg">{job.title}</CardTitle>
-                      <div className="flex items-center gap-4 mt-2">
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
-                          {Math.round(job.confidence_score * 100)}% match
-                        </Badge>
-                        <Badge 
-                          variant="default"
-                          className="text-xs bg-blue-600 text-white"
-                        >
-                          🤖 Multi-Agent Discovery
-                        </Badge>
-                        <span className="text-sm text-gray-600">📍 {job.location}</span>
+            {selectedCompany && jobOpportunities.get(selectedCompany.id)?.map((job) => {
+              const hasCV = jobCVs.has(job.id);
+              const cvGeneration = jobCVs.get(job.id);
+              
+              return (
+                <Card key={job.id} className="bg-gray-50 border-gray-200">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CardTitle className="text-gray-900">{job.title}</CardTitle>
+                          {hasCV && (
+                            <Badge variant="secondary" className="bg-blue-500 text-white">
+                              CV Ready
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {job.location} • {job.salary_range || 'Salary not specified'}
+                        </div>
                       </div>
                     </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <p className="text-gray-700 mb-4">{job.description}</p>
+                    
+                    {/* CV Section */}
+                    {hasCV && cvGeneration && (
+                      <div className="border-t border-gray-300 pt-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Briefcase className="w-4 h-4 text-blue-500" />
+                            Generated CV
+                          </h4>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleViewCV(cvGeneration)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View CV
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleDownloadCV(cvGeneration)}
+                              className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {/* CV Preview */}
+                                                 <div className="bg-gray-100 rounded-lg p-4">
+                           <div className="grid grid-cols-1 gap-4">
+                             <div>
+                               <h5 className="font-medium text-gray-900 mb-2">Optimization</h5>
+                               <div className="text-sm text-gray-600">
+                                 {cvGeneration.optimizationMetadata.selectedProjectsCount} projects • {cvGeneration.optimizationMetadata.highlightedSkillsCount} skills
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                      </div>
+                    )}
+                    
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => window.open(job.url, '_blank')}
-                        className="text-gray-700 border-gray-300 bg-white hover:bg-gray-50"
+                        onClick={() => {
+                          const jobUrl = job.application_url || job.url;
+                          if (jobUrl && jobUrl !== '#' && jobUrl !== '') {
+                            window.open(jobUrl, '_blank');
+                          } else {
+                            toast.error("Job URL not available", {
+                              description: "This job doesn't have a direct link. Try visiting the company's careers page."
+                            });
+                          }
+                        }}
+                        disabled={!job.application_url || job.application_url === '#'}
+                        className="text-gray-700 border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
-                        View Job
+                        {(!job.application_url || job.application_url === '#') ? 'No Link' : 'View Job'}
                       </Button>
                       <Button
                         size="sm"
@@ -1074,94 +1210,169 @@ export const CompanyDirectory = () => {
                           </>
                         ) : (
                           <>
-                            📄 Generate CV
+                            📄 {hasCV ? 'Regenerate CV' : 'Generate CV'}
                           </>
                         )}
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          toast.success("Job URL Found!", {
-                            description: `Agent successfully navigated to: ${job.url}`
-                          });
-                        }}
-                        className="bg-green-600 hover:bg-green-700 border border-green-600 text-white"
-                      >
-                        ✅ Verify
-                      </Button>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Job Description</h4>
-                    <p className="text-sm text-gray-700 leading-relaxed">{job.description}</p>
-                  </div>
-                  
-                  {job.requirements && job.requirements.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Requirements</h4>
-                      <div className="space-y-1">
-                        {job.requirements.map((req, index) => (
-                          <div key={index} className="flex items-start gap-2">
-                            <span className="text-blue-600 text-xs mt-1">•</span>
-                            <span className="text-sm text-gray-700">{req}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {job.salary_range && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-1">Salary Range</h4>
-                      <p className="text-sm text-gray-700">{job.salary_range}</p>
-                    </div>
-                  )}
-                  
-                  <div className="pt-2 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-600 font-medium">
-                        🤖 Found by Multi-Agent Workflow
-                      </span>
-                      <Badge 
-                        variant="default"
-                        className="text-xs bg-blue-600 text-white"
-                      >
-                        ✅ VERIFIED & MATCHED
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 font-medium">Job URL:</span>
-                        <a
-                          href={job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 break-all underline"
-                        >
-                          {job.url}
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 font-medium">Career Page:</span>
-                        <span className="text-xs text-blue-600 font-medium">Verified by AI Agent</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            
-            {selectedCompany && (!jobOpportunities.get(selectedCompany.id) || jobOpportunities.get(selectedCompany.id)?.length === 0) && (
-              <div className="text-center py-8">
-                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-700 mb-2">No jobs found</h3>
-                <p className="text-gray-600">The autonomous agent couldn't find matching positions</p>
-              </div>
-            )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CV Preview Modal */}
+      <Dialog open={cvPreviewOpen} onOpenChange={setCvPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white border-gray-300 text-gray-900">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <Briefcase className="w-5 h-5" />
+              CV Preview
+            </DialogTitle>
+            <DialogClose className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1 rounded">
+              <X className="w-4 h-4" />
+            </DialogClose>
+          </DialogHeader>
+          
+          {selectedCvGeneration && (
+            <div className="space-y-6">
+              {/* CV Header */}
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {selectedCvGeneration.cvData.profile.name}
+                    </h3>
+                    <p className="text-gray-600">{selectedCvGeneration.cvData.profile.title}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleDownloadCV(selectedCvGeneration)}
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* CV Content */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Professional Summary */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Professional Summary</h4>
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {selectedCvGeneration.cvData.profile.summary}
+                  </p>
+                </div>
+
+                {/* Contact Information */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Contact Information</h4>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div>📧 {selectedCvGeneration.cvData.profile.email}</div>
+                    <div>📱 {selectedCvGeneration.cvData.profile.phone}</div>
+                    <div>📍 {selectedCvGeneration.cvData.profile.location}</div>
+                    {selectedCvGeneration.cvData.profile.linkedinUrl && (
+                      <div>💼 {selectedCvGeneration.cvData.profile.linkedinUrl}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Skills */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Key Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCvGeneration.cvData.skills.highlighted.map((skill, index) => (
+                      <Badge key={index} variant="secondary" className="text-xs">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Work Experience */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Work Experience</h4>
+                  <div className="space-y-3">
+                    {selectedCvGeneration.cvData.experience.slice(0, 3).map((exp, index) => (
+                      <div key={index} className="border-l-2 border-blue-500 pl-3">
+                        <div className="font-medium text-gray-900">{exp.position}</div>
+                        <div className="text-sm text-gray-600">{exp.company} • {exp.duration}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Projects */}
+                {selectedCvGeneration.cvData.selectedProjects.length > 0 && (
+                  <div className="md:col-span-2">
+                    <h4 className="font-semibold text-gray-900 mb-3">Featured Projects</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedCvGeneration.cvData.selectedProjects.map((project, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-4">
+                          <div className="font-medium text-gray-900 mb-2">{project.name}</div>
+                          <p className="text-sm text-gray-700 mb-2">{project.description}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {project.technologies.map((tech, techIndex) => (
+                              <Badge key={techIndex} variant="outline" className="text-xs">
+                                {tech}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Publications */}
+                {selectedCvGeneration.cvData.selectedPublications.length > 0 && (
+                  <div className="md:col-span-2">
+                    <h4 className="font-semibold text-gray-900 mb-3">Publications</h4>
+                    <div className="space-y-3">
+                      {selectedCvGeneration.cvData.selectedPublications.map((pub, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-4">
+                          <div className="font-medium text-gray-900 mb-1">{pub.title}</div>
+                          <div className="text-sm text-gray-600 mb-2">{pub.authors} • {pub.year}</div>
+                          <p className="text-sm text-gray-700">{pub.abstract}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Optimization Metadata */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">CV Optimization Details</h4>
+                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-blue-600">
+                       {selectedCvGeneration.optimizationMetadata.selectedProjectsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Projects Selected</div>
+                   </div>
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-purple-600">
+                       {selectedCvGeneration.optimizationMetadata.highlightedSkillsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Skills Highlighted</div>
+                   </div>
+                   <div className="bg-gray-50 rounded-lg p-3 text-center">
+                     <div className="text-2xl font-bold text-orange-600">
+                       {selectedCvGeneration.optimizationMetadata.selectedPublicationsCount}
+                     </div>
+                     <div className="text-xs text-gray-600">Publications</div>
+                   </div>
+                 </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

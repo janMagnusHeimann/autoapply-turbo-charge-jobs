@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award } from "lucide-react";
+import { Github, GraduationCap, ExternalLink, Plus, Edit, Briefcase, Calendar, MapPin, Trash2, Star, Award, Link, Linkedin, Globe, X, Upload, FileText, AlertCircle, Check, File } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -11,8 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserService } from "@/services/userService";
+import { GitHubService } from "@/services/githubService";
+import { CVParsingService, type UploadedCV } from "@/services/cvParsingService";
 import { SelectiveGitHubIntegration } from "./SelectiveGitHubIntegration";
 import { PublicationsIntegration } from "./PublicationsIntegration";
+import { useToast } from "@/hooks/use-toast";
 
 interface CVAsset {
   id: string;
@@ -61,10 +64,48 @@ interface OtherForm {
   current: boolean;
 }
 
+interface SocialLink {
+  id?: string;
+  platform: string;
+  url: string;
+  username: string;
+  description?: string;
+}
+
+interface SocialLinksData {
+  linkedin?: string;
+  github?: string;
+  x?: string;
+  medium?: string;
+  portfolio?: string;
+  blog?: string;
+  youtube?: string;
+  behance?: string;
+  dribbble?: string;
+  stackoverflow?: string;
+}
+
 export const ProfileAssets = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [assets, setAssets] = useState<CVAsset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [debugSyncing, setDebugSyncing] = useState(false);
+  
+  // CV Upload states
+  const [showCVUpload, setShowCVUpload] = useState(false);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvParseResult, setCvParseResult] = useState<string>('');
+  const [uploadedCVs, setUploadedCVs] = useState<UploadedCV[]>([]);
+  const [loadingCVs, setLoadingCVs] = useState(false);
+  const [selectedCVId, setSelectedCVId] = useState<string | null>(null);
+  
+  // CV Backup states
+  const [showBackupRestore, setShowBackupRestore] = useState(false);
+  const [availableBackups, setAvailableBackups] = useState<any[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState(false);
   
   // Form states
   const [showExperienceForm, setShowExperienceForm] = useState(false);
@@ -73,6 +114,10 @@ export const ProfileAssets = () => {
   const [editingExperience, setEditingExperience] = useState<ExperienceForm | null>(null);
   const [editingEducation, setEditingEducation] = useState<EducationForm | null>(null);
   const [editingOther, setEditingOther] = useState<OtherForm | null>(null);
+  
+  // Social Links state
+  const [socialLinks, setSocialLinks] = useState<SocialLinksData>({});
+  const [loadingSocialLinks, setLoadingSocialLinks] = useState(false);
   
   const [experienceForm, setExperienceForm] = useState<ExperienceForm>({
     company: '',
@@ -111,6 +156,8 @@ export const ProfileAssets = () => {
   useEffect(() => {
     if (user) {
       fetchAssets();
+      fetchSocialLinks();
+      fetchUploadedCVs();
     }
   }, [user]);
 
@@ -122,7 +169,7 @@ export const ProfileAssets = () => {
 
     try {
       const data = await UserService.getUserCVAssets(user.id);
-      
+
       if (data && data.length > 0) {
         setAssets(data);
       } else {
@@ -136,6 +183,177 @@ export const ProfileAssets = () => {
       setLoading(false);
     }
   };
+
+  const fetchUploadedCVs = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingCVs(true);
+      const cvs = await CVParsingService.getUserCVs(user.id);
+      setUploadedCVs(cvs);
+
+      // If there are CVs and none selected, select the most recent one
+      if (cvs.length > 0 && !selectedCVId) {
+        setSelectedCVId(cvs[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching uploaded CVs:', error);
+      setUploadedCVs([]);
+    } finally {
+      setLoadingCVs(false);
+    }
+  };
+
+  const fetchSocialLinks = async () => {
+    if (!user) return;
+    
+    setLoadingSocialLinks(true);
+    console.log('Fetching social links for user:', user.id);
+    
+    try {
+      // Initialize with empty strings to ensure consistent state
+      let initialLinks = {
+        linkedin: '',
+        github: '',
+        x: '',
+        medium: '',
+        portfolio: '',
+        blog: '',
+        youtube: '',
+        behance: '',
+        dribbble: '',
+        stackoverflow: ''
+      };
+      
+      // First, try to load from localStorage
+      const storedLinks = localStorage.getItem(`socialLinks_${user.id}`);
+      if (storedLinks) {
+        try {
+          const parsedLinks = JSON.parse(storedLinks);
+          initialLinks = { ...initialLinks, ...parsedLinks };
+          setSocialLinks(initialLinks);
+          console.log('Loaded social links from localStorage:', initialLinks);
+        } catch (e) {
+          console.error('Error parsing localStorage social links:', e);
+        }
+      }
+      
+      // Then fetch from database (this will overwrite with latest data)
+      const profile = await UserService.getUserProfile(user.id);
+      console.log('Fetched user profile:', profile);
+      
+      if (profile) {
+        const profileLinks = {
+          linkedin: profile.linkedin_url || '',
+          github: profile.github_url || '',
+          portfolio: profile.portfolio_url || '',
+          // These will come from localStorage until migration is applied
+          x: initialLinks.x || '',
+          medium: initialLinks.medium || '',
+          blog: initialLinks.blog || '',
+          youtube: initialLinks.youtube || '',
+          behance: initialLinks.behance || '',
+          dribbble: initialLinks.dribbble || '',
+          stackoverflow: initialLinks.stackoverflow || ''
+        };
+        
+        setSocialLinks(profileLinks);
+        
+        // Update localStorage with latest database data
+        localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(profileLinks));
+        console.log('Loaded social links from database:', profileLinks);
+      } else {
+        // If no profile found, set empty links but still initialize state
+        setSocialLinks(initialLinks);
+        console.log('No profile found, using initial links:', initialLinks);
+      }
+    } catch (error) {
+      console.error('Error fetching social links:', error);
+      
+      // If database fails, try localStorage as fallback
+      const storedLinks = localStorage.getItem(`socialLinks_${user.id}`);
+      if (storedLinks) {
+        try {
+          const parsedLinks = JSON.parse(storedLinks);
+          setSocialLinks(parsedLinks);
+          console.log('Fallback: Loaded social links from localStorage:', parsedLinks);
+        } catch (e) {
+          console.error('Error parsing fallback localStorage:', e);
+          // Set empty state as last resort
+          setSocialLinks({
+            linkedin: '', github: '', x: '', medium: '', portfolio: '',
+            blog: '', youtube: '', behance: '', dribbble: '', stackoverflow: ''
+          });
+        }
+      } else {
+        // Set empty state as last resort
+        setSocialLinks({
+          linkedin: '', github: '', x: '', medium: '', portfolio: '',
+          blog: '', youtube: '', behance: '', dribbble: '', stackoverflow: ''
+        });
+      }
+    } finally {
+      setLoadingSocialLinks(false);
+    }
+  };
+
+  const saveSocialLinks = async () => {
+    if (!user) return;
+    
+    setLoadingSocialLinks(true);
+    try {
+      console.log('Manually saving social links:', socialLinks);
+      const result = await UserService.updateUserProfile(user.id, {
+        linkedin_url: socialLinks.linkedin || null,
+        github_url: socialLinks.github || null,
+        portfolio_url: socialLinks.portfolio || null
+        // Note: twitter_url, medium_url, blog_url, youtube_url, behance_url, dribbble_url, stackoverflow_url
+        // are not yet in the database schema - need to run migration first
+      });
+      console.log('Social links saved successfully:', result);
+      
+      // Also save to localStorage as backup
+      localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(socialLinks));
+    } catch (error) {
+      console.error('Error saving social links:', error);
+      alert('Error saving social links. Please try again.');
+    } finally {
+      setLoadingSocialLinks(false);
+    }
+  };
+
+  // Auto-save social links when they change (with debounce)
+  useEffect(() => {
+    if (!user) return;
+    
+    // Skip auto-save on initial load (when socialLinks is still empty object)
+    if (Object.keys(socialLinks).length === 0) return;
+    
+    console.log('Social links changed, auto-saving in 2 seconds:', socialLinks);
+    
+    // Save to localStorage immediately for persistence
+    localStorage.setItem(`socialLinks_${user.id}`, JSON.stringify(socialLinks));
+    
+    // Debounced auto-save to database
+    const timeoutId = setTimeout(async () => {
+      if (!user) return;
+      
+      console.log('Auto-saving social links to database...');
+      try {
+        const result = await UserService.updateUserProfile(user.id, {
+          linkedin_url: socialLinks.linkedin || null,
+          github_url: socialLinks.github || null,
+          portfolio_url: socialLinks.portfolio || null
+          // Note: Other social links saved to localStorage only until migration is applied
+        });
+        console.log('Social links auto-saved successfully to database:', result);
+      } catch (error) {
+        console.error('Error auto-saving social links:', error);
+      }
+    }, 2000); // Auto-save after 2 seconds of no changes
+    
+    return () => clearTimeout(timeoutId);
+  }, [socialLinks, user]);
 
   const getDemoAssets = (): CVAsset[] => [
     {
@@ -470,17 +688,351 @@ export const ProfileAssets = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+  const formatUploadTime = (timestamp: string) => {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    // Format: "Dec 25, 2025 at 3:45 PM"
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
-  const experiences = assets.filter(asset => asset.asset_type === 'experience');
-  const education = assets.filter(asset => asset.asset_type === 'education');
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+
+    // Handle various date formats from CV extraction
+    // Examples: "Apr 2025", "2025-04", "2025", "April 2025", "2025-04-15"
+    try {
+      // If it's already in a "Month Year" format like "Apr 2025", return as-is
+      if (/^[A-Za-z]{3,9}\s+\d{4}$/.test(dateString)) {
+        return dateString;
+      }
+      
+      // If it's "YYYY-MM" format, convert to "Month Year"
+      if (/^\d{4}-\d{2}$/.test(dateString)) {
+        const date = new Date(dateString + '-01'); // Add day to make it valid
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      }
+      
+      // If it's just a year "YYYY", return as-is
+      if (/^\d{4}$/.test(dateString)) {
+        return dateString;
+      }
+      
+      // Try to parse as a regular date
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      }
+      
+      // If all else fails, return the original string
+      return dateString;
+    } catch (error) {
+      // If parsing fails, return the original string
+      return dateString;
+    }
+  };
+
+  const handleDebugSync = async () => {
+    if (!user) return;
+    
+    try {
+      setDebugSyncing(true);
+      console.log('🐛 Debug: Force syncing GitHub repositories...');
+      
+      const result = await GitHubService.forceSyncRepositories(user.id);
+      
+      if (result.success) {
+        toast({
+          title: "Debug Sync Successful",
+          description: result.message,
+        });
+        await fetchAssets(); // Refresh assets
+      } else {
+        toast({
+          title: "Debug Sync Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Debug sync error:', error);
+      toast({
+        title: "Debug Sync Error",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      setDebugSyncing(false);
+    }
+  };
+
+  const handleCVUpload = async () => {
+    if (!user || !cvFile) return;
+
+    try {
+      setCvUploading(true);
+      setCvParseResult('');
+
+      console.log('📄 Starting CV upload and parsing...');
+
+      // First, upload the CV file to persist it
+      const uploadResult = await CVParsingService.uploadCV(user.id, cvFile);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Failed to upload CV');
+      }
+
+      console.log('✅ CV uploaded successfully, now processing...');
+
+      // Process CV using backend service with proper PDF extraction
+      const result = await CVParsingService.processCV(user.id, cvFile);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to process CV');
+      }
+      
+      console.log('✅ CV processed successfully via backend');
+      
+      // Force refresh the assets, social links, and CV list with delay to ensure DB updates are complete
+      console.log('🔄 Refreshing component data...');
+      setLoading(true);
+
+      // Add small delay to ensure backend has finished writing to database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      await Promise.all([
+        fetchAssets(),
+        fetchSocialLinks(),
+        fetchUploadedCVs()
+      ]);
+      setLoading(false);
+      
+      // Show success message based on backend response
+      const backendData = result.data?.data?.extracted_data || {};
+      const assetsCreated = result.data?.data?.assets_created || 0;
+      const experienceCount = backendData.experience?.length || 0;
+      const educationCount = backendData.education?.length || 0;
+      const certificationCount = backendData.certifications?.length || 0;
+      const awardsCount = backendData.awards?.length || 0;
+      
+      let summary = '';
+      if (assetsCreated > 0) {
+        summary = `Successfully imported your CV! Added ${experienceCount} work experiences, ${educationCount} education entries, ${certificationCount} certifications, and ${awardsCount} awards. Check the Experience and Education tabs to review the imported data.`;
+      } else {
+        summary = `CV uploaded but no data was automatically extracted. This can happen with certain PDF formats. You can manually add your experience and education using the forms in the respective tabs.`;
+      }
+      
+      setCvParseResult(summary);
+      
+      toast({
+        title: "CV Import Successful!",
+        description: "Your profile has been updated. Check the Experience, Education, and Other tabs to review the imported information.",
+        duration: 5000,
+      });
+      
+      // Reset form
+      setCvFile(null);
+      
+    } catch (error) {
+      console.error('CV upload error:', error);
+      setCvParseResult(`Error: ${error instanceof Error ? error.message : 'Failed to process CV'}`);
+      
+      toast({
+        title: "CV Import Failed",
+        description: error instanceof Error ? error.message : 'Failed to process CV file',
+        variant: "destructive",
+      });
+    } finally {
+      setCvUploading(false);
+    }
+  };
+
+  const fetchAvailableBackups = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingBackups(true);
+      const result = await CVParsingService.listCVBackups(user.id);
+
+      if (result.success) {
+        setAvailableBackups(result.backups || []);
+      } else {
+        console.error('Failed to fetch backups:', result.error);
+        toast({
+          title: "Failed to load backups",
+          description: result.error || "Could not load available backups",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching backups:', error);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const handleDeleteUploadedCV = async (cvId: string) => {
+    if (!user) return;
+
+    try {
+      const result = await CVParsingService.deleteCV(cvId);
+
+      if (result.success) {
+        toast({
+          title: "CV Deleted",
+          description: "The CV file has been removed from your account",
+        });
+
+        // If this was the selected CV, clear selection
+        if (selectedCVId === cvId) {
+          setSelectedCVId(null);
+        }
+
+        // Refresh the CV list
+        await fetchUploadedCVs();
+      } else {
+        toast({
+          title: "Failed to Delete CV",
+          description: result.error || "Could not delete the CV file",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting CV:', error);
+      toast({
+        title: "Delete Failed",
+        description: "An error occurred while deleting the CV",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSelectUploadedCV = (cvId: string) => {
+    setSelectedCVId(cvId);
+    toast({
+      title: "CV Selected",
+      description: "This CV will be used for job applications",
+    });
+  };
+
+  const handleRestoreBackup = async (backupTimestamp: string) => {
+    if (!user) return;
+    
+    try {
+      setRestoringBackup(true);
+      
+      const result = await CVParsingService.restoreCVBackup(user.id, backupTimestamp);
+      
+      if (result.success) {
+        toast({
+          title: "Backup Restored Successfully",
+          description: `Restored ${result.data?.assets_restored || 0} CV assets from backup`,
+        });
+        
+        // Refresh the assets and close the backup dialog
+        await fetchAssets();
+        setShowBackupRestore(false);
+        
+      } else {
+        toast({
+          title: "Failed to Restore Backup",
+          description: result.error || "Could not restore the selected backup",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error restoring backup:', error);
+      toast({
+        title: "Restore Failed",
+        description: "An error occurred while restoring the backup",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoringBackup(false);
+    }
+  };
+
+  const handleShowBackupRestore = () => {
+    setShowBackupRestore(true);
+    fetchAvailableBackups();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
+      const allowedExtensions = ['.pdf', '.txt', '.md'];
+      
+      const isValidType = allowedTypes.includes(file.type) || 
+                         allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+      
+      if (!isValidType) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please upload a PDF or text file (.pdf, .txt, .md)",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Please upload a file smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setCvFile(file);
+      setCvParseResult('');
+    }
+  };
+
+  // Sort assets chronologically (most recent first)
+  const sortAssetsByDate = (assets: CVAsset[]) => {
+    return assets.sort((a, b) => {
+      // Handle both old (start_date) and new (startDate) field names for backward compatibility
+      const aStartDate = a.metadata?.startDate || a.metadata?.start_date || '';
+      const bStartDate = b.metadata?.startDate || b.metadata?.start_date || '';
+      
+      // Handle "current" positions - they should be first
+      const aIsCurrent = a.metadata?.current || a.metadata?.endDate === 'current' || a.metadata?.end_date === 'current';
+      const bIsCurrent = b.metadata?.current || b.metadata?.endDate === 'current' || b.metadata?.end_date === 'current';
+      
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (!aIsCurrent && bIsCurrent) return 1;
+      
+      // For non-current positions, sort by start date (most recent first)
+      if (aStartDate && bStartDate) {
+        // Try to parse dates for comparison
+        const aDate = new Date(aStartDate.includes(' ') ? aStartDate : aStartDate + '-01');
+        const bDate = new Date(bStartDate.includes(' ') ? bStartDate : bStartDate + '-01');
+        
+        if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+          return bDate.getTime() - aDate.getTime(); // Most recent first
+        }
+      }
+      
+      // Fallback to string comparison
+      return bStartDate.localeCompare(aStartDate);
+    });
+  };
+  
+  const experiences = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'experience'));
+  const education = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'education'));
   const repositories = assets.filter(asset => asset.asset_type === 'repository');
   const publications = assets.filter(asset => asset.asset_type === 'publication');
-  const otherAssets = assets.filter(asset => asset.asset_type === 'other');
+  const otherAssets = sortAssetsByDate(assets.filter(asset => asset.asset_type === 'other'));
 
   const getCategoryIcon = (category: string) => {
     const iconMap: { [key: string]: any } = {
@@ -528,8 +1080,14 @@ export const ProfileAssets = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="experience" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 bg-gray-800">
+      <Tabs defaultValue="cv-upload" className="w-full">
+        <TabsList className="grid w-full grid-cols-7 bg-gray-800">
+          <TabsTrigger value="cv-upload" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
+            Import CV
+          </TabsTrigger>
+          <TabsTrigger value="social" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
+            Social Links
+          </TabsTrigger>
           <TabsTrigger value="experience" className="text-gray-300 data-[state=active]:bg-gray-600 data-[state=active]:text-white">
             Experience
           </TabsTrigger>
@@ -546,6 +1104,544 @@ export const ProfileAssets = () => {
             Publications
           </TabsTrigger>
         </TabsList>
+
+        {/* CV Upload Tab */}
+        <TabsContent value="cv-upload" className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Import Existing CV</h2>
+            <p className="text-gray-400">Upload your existing CV to automatically populate your profile with experience, education, and other information</p>
+          </div>
+
+          {/* Upload Area */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3 text-white">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Upload className="w-5 h-5 text-white" />
+                </div>
+                Upload Your CV
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* File Upload */}
+              <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium text-white">Choose your CV file</h3>
+                  <p className="text-gray-400">Upload a PDF or text file of your existing CV</p>
+                </div>
+                <div className="mt-4">
+                  <input
+                    id="cv-file-upload"
+                    type="file"
+                    accept=".pdf,.txt,.md"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('cv-file-upload')?.click()}
+                    className="bg-gray-800 border-gray-600 text-white hover:bg-gray-700"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Select File
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Supported formats: PDF, TXT, MD (max 10MB)
+                </p>
+              </div>
+
+              {/* Selected File */}
+              {cvFile && (
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-blue-400" />
+                      <div>
+                        <p className="text-white font-medium">{cvFile.name}</p>
+                        <p className="text-gray-400 text-sm">
+                          {(cvFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCvFile(null)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Button */}
+              {cvFile && (
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleCVUpload}
+                    disabled={cvUploading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {cvUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Processing CV...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import CV Data
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Restore Previous CV Button */}
+                  <Button
+                    variant="outline"
+                    onClick={handleShowBackupRestore}
+                    className="ml-2"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Restore Previous CV
+                  </Button>
+                </div>
+              )}
+
+              {/* Result Display */}
+              {cvParseResult && (
+                <div className={`p-4 rounded-lg ${cvParseResult.startsWith('Error') ? 'bg-red-900/20 border border-red-800/50' : 'bg-green-900/20 border border-green-800/50'}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${cvParseResult.startsWith('Error') ? 'bg-red-600' : 'bg-green-600'}`}>
+                      {cvParseResult.startsWith('Error') ? (
+                        <AlertCircle className="w-3 h-3 text-white" />
+                      ) : (
+                        <Upload className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className={`font-medium mb-1 ${cvParseResult.startsWith('Error') ? 'text-red-200' : 'text-green-200'}`}>
+                        {cvParseResult.startsWith('Error') ? 'Import Failed' : 'Import Successful'}
+                      </h3>
+                      <p className={`text-sm ${cvParseResult.startsWith('Error') ? 'text-red-300' : 'text-green-300'}`}>
+                        {cvParseResult}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Previously Uploaded CVs Section */}
+          {uploadedCVs.length > 0 && (
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                    <File className="w-5 h-5 text-white" />
+                  </div>
+                  Previously Uploaded CVs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-400 text-sm">
+                  Select a CV to use for job applications or upload a new one above.
+                </p>
+
+                <div className="space-y-3">
+                  {uploadedCVs.map((cv) => (
+                    <div
+                      key={cv.id}
+                      className={`bg-gray-800 p-4 rounded-lg border-2 transition-all ${
+                        selectedCVId === cv.id
+                          ? 'border-green-600 bg-green-900/20'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            selectedCVId === cv.id ? 'bg-green-600' : 'bg-gray-700'
+                          }`}>
+                            {selectedCVId === cv.id ? (
+                              <Check className="w-5 h-5 text-white" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-white font-medium">{cv.filename}</h4>
+                            <div className="flex items-center gap-4 text-sm text-gray-400">
+                              <span>{(cv.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                              <span>•</span>
+                              <span>Uploaded on {formatUploadTime(cv.created_at)}</span>
+                              {cv.extraction_status === 'ai_processed' && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-green-400">✓ AI Processed</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {selectedCVId !== cv.id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSelectUploadedCV(cv.id)}
+                              className="bg-gray-700 border-gray-600 text-white hover:bg-gray-600"
+                            >
+                              Select
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUploadedCV(cv.id)}
+                            className="text-gray-400 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Instructions */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">How it works</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">1</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Upload your CV</h4>
+                    <p className="text-gray-400 text-sm">Choose a PDF or text file containing your current CV or resume</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">2</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">AI extracts your information</h4>
+                    <p className="text-gray-400 text-sm">Our system reads your CV and extracts work experience, education, skills, and other details</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-sm font-bold">3</span>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Review and edit</h4>
+                    <p className="text-gray-400 text-sm">Check the imported information in the other tabs and make any necessary edits</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertCircle className="w-3 h-3 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-orange-200 font-medium">Note about GitHub and Publications</h4>
+                    <p className="text-orange-300 text-sm">This import process will not override your connected GitHub repositories or Google Scholar publications. Those remain managed separately in their respective tabs.</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Social Links Tab */}
+        <TabsContent value="social" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Social Links & Online Presence</h2>
+              <p className="text-gray-400">Add your professional social media profiles and online portfolios to strengthen your professional brand</p>
+            </div>
+            <Button
+              onClick={saveSocialLinks}
+              disabled={loadingSocialLinks}
+              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 disabled:opacity-50"
+            >
+              {loadingSocialLinks ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+
+          {/* Helper Text */}
+          <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <ExternalLink className="w-3 h-3 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium mb-1">Why add social links?</h3>
+                <p className="text-blue-200 text-sm">
+                  These links will be included in your generated CVs and help employers learn more about your professional work, 
+                  coding projects, thought leadership, and online presence. Only add professional profiles you want to showcase.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* LinkedIn */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Linkedin className="w-5 h-5 text-white" />
+                  </div>
+                  LinkedIn Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">LinkedIn URL</Label>
+                  <Input
+                    value={socialLinks.linkedin || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))}
+                    placeholder="https://linkedin.com/in/your-profile"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your professional LinkedIn profile</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* GitHub */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center">
+                    <Github className="w-5 h-5 text-white" />
+                  </div>
+                  GitHub Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">GitHub URL</Label>
+                  <Input
+                    value={socialLinks.github || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, github: e.target.value }))}
+                    placeholder="https://github.com/your-username"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your code portfolio and repositories</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* X (formerly Twitter) */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                    <X className="w-5 h-5 text-white" />
+                  </div>
+                  X Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">X URL</Label>
+                  <Input
+                    value={socialLinks.x || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, x: e.target.value }))}
+                    placeholder="https://x.com/your-handle"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your professional thoughts and networking</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Medium */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                    <Edit className="w-5 h-5 text-white" />
+                  </div>
+                  Medium Blog
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Medium URL</Label>
+                  <Input
+                    value={socialLinks.medium || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, medium: e.target.value }))}
+                    placeholder="https://medium.com/@your-username"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your published articles and thought leadership</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Portfolio Website */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-white" />
+                  </div>
+                  Portfolio Website
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Portfolio URL</Label>
+                  <Input
+                    value={socialLinks.portfolio || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, portfolio: e.target.value }))}
+                    placeholder="https://your-portfolio.com"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your personal website or portfolio</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Personal Blog */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                    <Link className="w-5 h-5 text-white" />
+                  </div>
+                  Personal Blog
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Blog URL</Label>
+                  <Input
+                    value={socialLinks.blog || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, blog: e.target.value }))}
+                    placeholder="https://your-blog.com"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your personal blog or tech writing</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stack Overflow */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
+                    <Star className="w-5 h-5 text-white" />
+                  </div>
+                  Stack Overflow
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">Stack Overflow URL</Label>
+                  <Input
+                    value={socialLinks.stackoverflow || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, stackoverflow: e.target.value }))}
+                    placeholder="https://stackoverflow.com/users/your-id"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your programming Q&A contributions</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* YouTube */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-white" />
+                  </div>
+                  YouTube Channel
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-white">YouTube URL</Label>
+                  <Input
+                    value={socialLinks.youtube || ''}
+                    onChange={(e) => setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))}
+                    placeholder="https://youtube.com/@your-channel"
+                    className="bg-gray-800 border-gray-700 text-white"
+                  />
+                  <p className="text-sm text-gray-400">Your video content and tutorials</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Preview Section */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-white">Link Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(socialLinks).map(([platform, url]) => {
+                  if (!url) return null;
+                  
+                  const getPlatformIcon = (platform: string) => {
+                    switch (platform) {
+                      case 'linkedin': return <Linkedin className="w-4 h-4" />;
+                      case 'github': return <Github className="w-4 h-4" />;
+                      case 'x': return <X className="w-4 h-4" />;
+                      case 'medium': return <Edit className="w-4 h-4" />;
+                      case 'portfolio': return <Globe className="w-4 h-4" />;
+                      case 'blog': return <Link className="w-4 h-4" />;
+                      case 'stackoverflow': return <Star className="w-4 h-4" />;
+                      case 'youtube': return <Globe className="w-4 h-4" />;
+                      default: return <ExternalLink className="w-4 h-4" />;
+                    }
+                  };
+                  
+                  return (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    >
+                      {getPlatformIcon(platform)}
+                      <span className="text-sm capitalize">{platform}</span>
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  );
+                })}
+              </div>
+              {Object.values(socialLinks).every(url => !url) && (
+                <p className="text-gray-400 text-center py-4">Add your social links above to see the preview</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Professional Experience Tab */}
         <TabsContent value="experience" className="space-y-6">
@@ -580,10 +1676,12 @@ export const ProfileAssets = () => {
                             <Calendar className="w-4 h-4" />
                             {formatDate(exp.metadata?.startDate)} - {exp.metadata?.current ? 'Present' : formatDate(exp.metadata?.endDate)}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {exp.metadata?.location}
-                          </span>
+                          {exp.metadata?.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {exp.metadata.location}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -663,6 +1761,12 @@ export const ProfileAssets = () => {
                             <Calendar className="w-4 h-4" />
                             {formatDate(edu.metadata?.startDate)} - {edu.metadata?.current ? 'Present' : formatDate(edu.metadata?.endDate)}
                           </span>
+                          {edu.metadata?.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {edu.metadata.location}
+                            </span>
+                          )}
                           {edu.metadata?.gpa && (
                             <span>GPA: {edu.metadata.gpa}</span>
                           )}
@@ -811,9 +1915,22 @@ export const ProfileAssets = () => {
 
         {/* Repositories Tab */}
         <TabsContent value="repositories" className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-white">GitHub Portfolio</h2>
-            <p className="text-gray-400">Select repositories and add descriptions for your professional portfolio</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">GitHub Portfolio</h2>
+              <p className="text-gray-400">Select repositories and add descriptions for your professional portfolio</p>
+            </div>
+            {import.meta.env.DEV && (
+              <Button
+                onClick={handleDebugSync}
+                disabled={debugSyncing}
+                variant="outline"
+                size="sm"
+                className="border-orange-500 text-orange-500 hover:bg-orange-500/10"
+              >
+                {debugSyncing ? 'Syncing...' : '🐛 Debug Sync'}
+              </Button>
+            )}
           </div>
           
           <SelectiveGitHubIntegration onRepositoriesSync={fetchAssets} />
@@ -1226,6 +2343,101 @@ export const ProfileAssets = () => {
                 {editingOther ? 'Update' : 'Add'} Achievement
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup Restore Dialog */}
+      <Dialog open={showBackupRestore} onOpenChange={() => {
+        setShowBackupRestore(false);
+        setAvailableBackups([]);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Restore Previous CV Data
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">
+              Select a previous CV backup to restore. This will replace your current CV data (Experience and Education) with the selected backup.
+            </p>
+            
+            {loadingBackups ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                <span className="ml-3">Loading available backups...</span>
+              </div>
+            ) : availableBackups.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No previous CV backups found.</p>
+                <p className="text-sm mt-2">Backups are created automatically when you upload a new CV.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="font-medium text-sm">Available Backups:</h3>
+                {availableBackups.map((backup, index) => (
+                  <div key={backup.backup_timestamp} className="border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">Backup #{availableBackups.length - index}</h4>
+                        <p className="text-sm text-gray-400">
+                          Created: {backup.backup_date} ({backup.asset_count} items)
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          ID: {backup.backup_timestamp}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRestoreBackup(backup.backup_timestamp)}
+                        disabled={restoringBackup}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {restoringBackup ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Restoring...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Restore
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-yellow-200 mb-1">Important</h4>
+                  <p className="text-sm text-yellow-300">
+                    Restoring a backup will replace your current CV data. Your current data will be automatically backed up before the restore.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBackupRestore(false);
+                setAvailableBackups([]);
+              }}
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

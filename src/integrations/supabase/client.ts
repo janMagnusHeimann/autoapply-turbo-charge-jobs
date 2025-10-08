@@ -4,7 +4,6 @@ import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const SUPABASE_SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === 'true';
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -26,10 +25,13 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Service role client for development bypass (bypasses RLS)
-export const supabaseServiceRole = BYPASS_AUTH && SUPABASE_SERVICE_ROLE_KEY 
-  ? createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      db: { schema: 'public' },
-      auth: { persistSession: false }
-    })
-  : null;
+// Note: Service role client has been removed from frontend for security.
+// Service role operations should be performed on the backend only.
+// For development bypass, use regular client with appropriate RLS policies.
+
+if (import.meta.env.DEV && BYPASS_AUTH) {
+  console.log('Development mode: Auth bypass enabled');
+}
+
+// Export null for backwards compatibility - service role operations moved to backend
+export const supabaseServiceRole = null;
