@@ -51,27 +51,35 @@ ALTER TABLE application_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uploaded_cvs ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for application_attempts
+DROP POLICY IF EXISTS "Users can view own application attempts" ON application_attempts;
 CREATE POLICY "Users can view own application attempts" ON application_attempts
   FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can insert own application attempts" ON application_attempts;
 CREATE POLICY "Users can insert own application attempts" ON application_attempts
   FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can update own application attempts" ON application_attempts;
 CREATE POLICY "Users can update own application attempts" ON application_attempts
   FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can delete own application attempts" ON application_attempts;
 CREATE POLICY "Users can delete own application attempts" ON application_attempts
   FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
 -- RLS Policies for uploaded_cvs
+DROP POLICY IF EXISTS "Users can view own uploaded CVs" ON uploaded_cvs;
 CREATE POLICY "Users can view own uploaded CVs" ON uploaded_cvs
   FOR SELECT USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can insert own uploaded CVs" ON uploaded_cvs;
 CREATE POLICY "Users can insert own uploaded CVs" ON uploaded_cvs
   FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can update own uploaded CVs" ON uploaded_cvs;
 CREATE POLICY "Users can update own uploaded CVs" ON uploaded_cvs
   FOR UPDATE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);
 
+DROP POLICY IF EXISTS "Users can delete own uploaded CVs" ON uploaded_cvs;
 CREATE POLICY "Users can delete own uploaded CVs" ON uploaded_cvs
   FOR DELETE USING (auth.uid() = user_id OR user_id = 'ebbae036-5dbf-4571-a29d-2318e1ce0eed'::uuid);

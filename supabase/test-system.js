@@ -106,7 +106,22 @@ async function runTests() {
       process.env.VITE_SUPABASE_ANON_KEY
     );
 
-    const tables = ['companies', 'jobs', 'job_sources', 'crawl_history'];
+    // Minimal, relevant tables for this app
+    const tables = [
+      'companies',
+      'job_listings',
+      'users',
+      'user_profiles',
+      'user_preferences',
+      'cv_assets',
+      'cv_generations',
+      'application_attempts',
+      'application_history',
+      'selected_repositories',
+      'selected_publications',
+      'google_scholar_connections',
+      'events'
+    ];
     const tableResults = await Promise.allSettled(
       tables.map(async (table) => {
         const { error } = await supabase.from(table).select('*').limit(1);

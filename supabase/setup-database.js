@@ -31,7 +31,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 async function setupDatabase() {
-  console.log('🚀 Setting up AutoApply database...\n');
+  console.log('🚀 Verifying AutoApply database connectivity...\n');
 
   try {
     // Test connection
@@ -44,47 +44,23 @@ async function setupDatabase() {
     
     console.log('✅ Database connection successful\n');
 
-    // Read and execute migration files
-    const migrationFiles = [
-      '001_job_crawler_schema.sql'
+    // Verify minimal required tables
+    console.log('\n🔍 Verifying minimal database tables...');
+    const tables = [
+      'companies',
+      'job_listings',
+      'users',
+      'user_profiles',
+      'user_preferences',
+      'cv_assets',
+      'cv_generations',
+      'application_attempts',
+      'application_history',
+      'selected_repositories',
+      'selected_publications',
+      'google_scholar_connections',
+      'events'
     ];
-
-    for (const migrationFile of migrationFiles) {
-      console.log(`📄 Applying migration: ${migrationFile}`);
-      
-      try {
-        const migrationPath = join(__dirname, '..', 'supabase', 'migrations', migrationFile);
-        const sql = readFileSync(migrationPath, 'utf8');
-        
-        // Split SQL into individual statements and execute them
-        const statements = sql
-          .split(';')
-          .map(stmt => stmt.trim())
-          .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
-
-        for (const statement of statements) {
-          if (statement.trim()) {
-            const { error } = await supabase.rpc('exec_sql', { sql: statement });
-            if (error) {
-              // Try using the REST API instead
-              console.log(`⚠️  RPC failed, trying direct SQL execution...`);
-              // Note: This requires service role key
-            }
-          }
-        }
-        
-        console.log(`✅ Migration ${migrationFile} applied successfully`);
-      } catch (error) {
-        console.error(`❌ Failed to apply migration ${migrationFile}:`, error.message);
-        console.log('💡 Please apply this migration manually in the Supabase SQL editor:');
-        console.log(`   https://supabase.com/dashboard/project/${getProjectId()}/sql`);
-      }
-    }
-
-    // Verify tables were created
-    console.log('\n🔍 Verifying database setup...');
-    
-    const tables = ['companies', 'jobs', 'job_sources', 'crawl_history'];
     const verificationResults = await Promise.allSettled(
       tables.map(async (table) => {
         const { error } = await supabase.from(table).select('*').limit(1);
@@ -106,11 +82,11 @@ async function setupDatabase() {
     }
 
     if (allTablesExist) {
-      console.log('\n🎉 Database setup completed successfully!');
+      console.log('\n🎉 Database connectivity verified!');
       console.log('\nNext steps:');
-      console.log('1. Run: npm run dev');
-      console.log('2. Open: http://localhost:5173');
-      console.log('3. Create your account and start using AutoApply!');
+      console.log('- Apply migrations in order (Supabase SQL editor or CLI): supabase/migrations/*.sql');
+      console.log('- Optional: run seed SQL for demo data: supabase/seed.sql');
+      console.log('- Then start the app: npm run dev:full');
     } else {
       console.log('\n⚠️  Some tables may not be accessible.');
       console.log('This could be due to RLS policies or permission issues.');
@@ -118,12 +94,12 @@ async function setupDatabase() {
     }
 
   } catch (error) {
-    console.error('❌ Database setup failed:', error.message);
-    console.log('\n💡 Manual setup instructions:');
+    console.error('❌ Database verification failed:', error.message);
+    console.log('\n💡 Setup instructions:');
     console.log('1. Go to your Supabase dashboard');
     console.log('2. Navigate to the SQL editor');
-    console.log('3. Copy and paste the contents of supabase/migrations/001_job_crawler_schema.sql');
-    console.log('4. Run the SQL query');
+    console.log('3. Apply migrations from supabase/migrations in order');
+    console.log('4. Optionally run supabase/seed.sql for demo data');
     process.exit(1);
   }
 }
@@ -133,33 +109,6 @@ function getProjectId() {
     return SUPABASE_URL.split('://')[1].split('.')[0];
   } catch {
     return 'your-project';
-  }
-}
-
-// Add exec_sql RPC function if it doesn't exist
-async function ensureExecSqlFunction() {
-  const createFunctionSQL = `
-    CREATE OR REPLACE FUNCTION exec_sql(sql text)
-    RETURNS text
-    LANGUAGE plpgsql
-    SECURITY DEFINER
-    AS $$
-    BEGIN
-      EXECUTE sql;
-      RETURN 'OK';
-    EXCEPTION
-      WHEN OTHERS THEN
-        RETURN SQLERRM;
-    END;
-    $$;
-  `;
-
-  try {
-    await supabase.rpc('exec_sql', { sql: 'SELECT 1' });
-  } catch (error) {
-    // Function doesn't exist, try to create it
-    console.log('📝 Creating helper function...');
-    // This would need to be done manually or through the dashboard
   }
 }
 

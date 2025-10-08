@@ -1181,11 +1181,21 @@ export const CompanyDirectory = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => window.open(job.url, '_blank')}
-                        className="text-gray-700 border-gray-300 bg-white hover:bg-gray-50"
+                        onClick={() => {
+                          const jobUrl = job.application_url || job.url;
+                          if (jobUrl && jobUrl !== '#' && jobUrl !== '') {
+                            window.open(jobUrl, '_blank');
+                          } else {
+                            toast.error("Job URL not available", {
+                              description: "This job doesn't have a direct link. Try visiting the company's careers page."
+                            });
+                          }
+                        }}
+                        disabled={!job.application_url || job.application_url === '#'}
+                        className="text-gray-700 border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
-                        View Job
+                        {(!job.application_url || job.application_url === '#') ? 'No Link' : 'View Job'}
                       </Button>
                       <Button
                         size="sm"

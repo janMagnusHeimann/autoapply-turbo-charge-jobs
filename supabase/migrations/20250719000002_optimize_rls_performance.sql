@@ -194,27 +194,45 @@ CREATE POLICY "Users can manage their own repositories" ON public.selected_repos
 -- PHASE 2: Consolidate multiple permissive policies and optimize JWT checks
 -- =============================================================================
 
--- Fix job_sources: consolidate overlapping policies
-DROP POLICY IF EXISTS "Job sources are publicly readable" ON public.job_sources;
-DROP POLICY IF EXISTS "Service can manage job sources" ON public.job_sources;
+DO $$
+BEGIN
+  -- job_sources policies
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'job_sources'
+  ) THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Job sources are publicly readable" ON public.job_sources';
+    EXECUTE 'DROP POLICY IF EXISTS "Service can manage job sources" ON public.job_sources';
+    EXECUTE $pol$
+      CREATE POLICY "Job sources access policy" ON public.job_sources
+        FOR ALL USING (
+          true OR
+          (select auth.jwt() ->> 'role') = 'service_role'
+        );
+    $pol$;
+  ELSE
+    RAISE NOTICE 'job_sources table does not exist, skipping policy consolidation';
+  END IF;
 
--- Single optimized policy for job_sources
-CREATE POLICY "Job sources access policy" ON public.job_sources
-  FOR ALL USING (
-    true OR  -- Public read access
-    (select auth.jwt() ->> 'role') = 'service_role'  -- Service role full access
-  );
-
--- Fix crawl_history: consolidate overlapping policies  
-DROP POLICY IF EXISTS "Crawl history is publicly readable" ON public.crawl_history;
-DROP POLICY IF EXISTS "Service can manage crawl history" ON public.crawl_history;
-
--- Single optimized policy for crawl_history
-CREATE POLICY "Crawl history access policy" ON public.crawl_history
-  FOR ALL USING (
-    true OR  -- Public read access
-    (select auth.jwt() ->> 'role') = 'service_role'  -- Service role full access
-  );
+  -- crawl_history policies
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'crawl_history'
+  ) THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Crawl history is publicly readable" ON public.crawl_history';
+    EXECUTE 'DROP POLICY IF EXISTS "Service can manage crawl history" ON public.crawl_history';
+    EXECUTE $pol$
+      CREATE POLICY "Crawl history access policy" ON public.crawl_history
+        FOR ALL USING (
+          true OR
+          (select auth.jwt() ->> 'role') = 'service_role'
+        );
+    $pol$;
+  ELSE
+    RAISE NOTICE 'crawl_history table does not exist, skipping policy consolidation';
+  END IF;
+END;
+$$;
 
 -- =============================================================================
 -- SUMMARY

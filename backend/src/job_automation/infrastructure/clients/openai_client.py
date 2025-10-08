@@ -5,6 +5,8 @@ OpenAI Client - Simplified client for LLM interactions
 import asyncio
 from typing import Optional, Dict, Any, List
 import logging
+import aiohttp
+from .web_scraper_client import WebScraperClient
 
 try:
     from openai import AsyncOpenAI
@@ -251,11 +253,18 @@ SEARCH INSTRUCTIONS:
 3. Find jobs related to: Engineering, Software, Technology, Product, Data, Backend, Frontend
 4. Include jobs that match the target skills or are in relevant departments
 
-IMPORTANT:
-- Find REAL job postings that are currently available
-- Get accurate job titles, locations, and descriptions
-- If you find job URLs, make sure they are legitimate links
+⚠️ CRITICAL REQUIREMENTS - READ CAREFULLY:
+- You are using web search to find REAL job postings that EXIST RIGHT NOW on the company's website
+- Each job URL must be a REAL, EXISTING link that you found through web search - not generated or made up
+- DO NOT create URLs with placeholder IDs like abc123, def456, test123, or sequential numbers
+- DO NOT generate hypothetical job URLs - only return URLs you actually found via web search
+- Each URL must be unique and specific to one job posting (with real job IDs from the company's ATS)
+- Example of GOOD URL: https://jobs.lever.co/n26/5f3a2b1c-8932-4d7e-a6c1-9b8f3e2d1a4c (real UUID)
+- Example of BAD URL: https://jobs.lever.co/n26/abc123 (fake placeholder ID)
+- If your web search doesn't find actual job postings with real URLs, return an empty array []
+- Test each URL in your mind - would it actually resolve to a real job posting?
 - Focus on jobs that would be suitable for someone with these skills: {skills_text}
+- NEVER make up job IDs or URLs - only use what you find through actual web search
 
 OUTPUT FORMAT (JSON only):
 [
@@ -283,7 +292,7 @@ Return actual job openings you find for {company_name}. If no suitable jobs are 
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a job search assistant that finds REAL job listings using web search. CRITICAL: You must return ONLY pure JSON arrays - no markdown, no explanations, no additional text. Never generate fictional job postings. Only return actual jobs from company websites or empty array []."
+                        "content": "You are a job search assistant that finds REAL job listings using web search. CRITICAL RULES:\n1. You must return ONLY pure JSON arrays - no markdown, no explanations, no additional text\n2. You are using WEB SEARCH to find real jobs - DO NOT make up or generate fake job data\n3. Only return jobs that you ACTUALLY FOUND via web search on the company's website\n4. Every job URL must be a REAL link you discovered - not a generated placeholder\n5. NEVER use placeholder IDs like abc123, def456, test123, or simple sequential numbers\n6. Real job IDs are usually: UUIDs, long alphanumeric strings, or meaningful slugs\n7. If your web search finds no real jobs, return an empty array [] - DO NOT make up fake ones\n8. Each URL must be unique and lead to a specific, existing job posting"
                     },
                     {
                         "role": "user", 
@@ -328,31 +337,212 @@ Return actual job openings you find for {company_name}. If no suitable jobs are 
                 
                 results = json.loads(content)
                 if isinstance(results, list):
+                    logger.info(f"\n📊 =================  JOB VALIDATION START =================")
+                    logger.info(f"📥 OpenAI returned {len(results)} jobs for {company_name}")
+
                     if results:
+                        # Track statistics
+                        stats = {
+                            'total_from_openai': len(results),
+                            'passed_basic': 0,
+                            'passed_format': 0,
+                            'filtered_generic': 0,
+                            'has_identifier': 0,
+                            'filtered_fake': 0,
+                            'final_valid': 0
+                        }
+
                         # Filter out jobs with invalid URLs and verify they exist
                         valid_jobs = []
-                        for job in results:
+                        for idx, job in enumerate(results, 1):
                             job_url = job.get('url', '')
-                            
-                            # Step 1: Domain validation (simplified to match ChatGPT behavior)
-                            # Only filter out obviously invalid URLs, but allow more flexibility
-                            if not job_url or job_url == '#' or 'javascript:' in job_url.lower():
-                                logger.warning(f"❌ Filtered out invalid URL: {job.get('title', 'Unknown')} - {job_url}")
+                            job_title = job.get('title', 'Unknown')
+
+                            logger.info(f"\n🔍 [{idx}/{len(results)}] Validating: {job_title}")
+                            logger.info(f"   URL: {job_url}")
+
+                            # First check if it's from a known ATS platform (PRIORITIZE THIS)
+                            is_ats_url = any([
+                                'greenhouse.io' in job_url.lower(),
+                                'lever.co' in job_url.lower(),
+                                'jobs.lever.co' in job_url.lower(),
+                                'workday.com' in job_url.lower(),
+                                'taleo.net' in job_url.lower(),
+                                'breezy.hr' in job_url.lower(),
+                                'ashbyhq.com' in job_url.lower(),
+                                'bamboohr.com' in job_url.lower(),
+                                'boards.greenhouse.io' in job_url.lower()
+                            ])
+
+                            if is_ats_url:
+                                logger.info(f"   ✅ Step 0: Known ATS platform detected - BYPASSING generic filters")
+
+                            # Step 1: Basic URL validation
+                            if not job_url or job_url == '#' or job_url == '' or 'javascript:' in job_url.lower():
+                                logger.warning(f"   ❌ Step 1 FAILED: Invalid URL (empty/placeholder)")
                                 continue
-                            
-                            # Step 2: URL existence verification (temporarily disabled to match ChatGPT behavior)
-                            # if not await self._verify_url_exists(job_url):
-                            #     logger.warning(f"❌ Filtered out non-existent job URL: {job.get('title', 'Unknown')} - {job_url}")
-                            #     continue
-                            
+                            logger.info(f"   ✅ Step 1: Basic validation passed")
+                            stats['passed_basic'] += 1
+
+                            # Step 2: Ensure URL has proper format
+                            if not job_url.startswith(('http://', 'https://')):
+                                logger.warning(f"   ❌ Step 2 FAILED: Malformed URL (no http/https)")
+                                continue
+                            logger.info(f"   ✅ Step 2: URL format valid")
+                            stats['passed_format'] += 1
+
+                            # Step 3: Filter out generic careers pages ONLY if NOT an ATS URL
+                            if not is_ats_url:
+                                generic_patterns = [
+                                    '/careers$', '/careers/$', '/jobs$', '/jobs/$',
+                                    '/careers#', '/jobs#', '/careers?', '/jobs?',
+                                    '/en/careers$', '/en/jobs$', '/de/careers$',
+                                    '/careers/all$', '/careers/search$',
+                                    '/careers/openings$', '/job-openings$',
+                                    '/work-with-us$', '/join-us$', '/opportunities$'
+                                ]
+
+                                is_generic = False
+                                matched_pattern = None
+                                for pattern in generic_patterns:
+                                    import re
+                                    if re.search(pattern, job_url.lower()):
+                                        is_generic = True
+                                        matched_pattern = pattern
+                                        break
+
+                                if is_generic:
+                                    logger.warning(f"   ❌ Step 3 FAILED: Generic careers page (matched pattern: {matched_pattern})")
+                                    stats['filtered_generic'] += 1
+                                    continue
+                                logger.info(f"   ✅ Step 3: Not a generic careers page")
+                            else:
+                                logger.info(f"   ⏭️  Step 3: Skipped (ATS URL exempt from generic filter)")
+
+                            # Step 4: Check for job identifiers
+                            identifier_checks = {
+                                'has_job_path': '/job/' in job_url.lower(),
+                                'has_position_path': '/position/' in job_url.lower(),
+                                'has_opening_path': '/opening/' in job_url.lower(),
+                                'has_role_path': '/role/' in job_url.lower(),
+                                'has_apply_path': '/apply/' in job_url.lower(),
+                                'has_uuid': bool(re.search(r'/[a-f0-9]{8,}', job_url)),
+                                'has_numeric_id': bool(re.search(r'/\d{5,}', job_url)),
+                                'is_ats': is_ats_url
+                            }
+
+                            has_job_identifier = any(identifier_checks.values())
+                            identifiers_found = [k for k, v in identifier_checks.items() if v]
+
+                            if has_job_identifier:
+                                logger.info(f"   ✅ Step 4: Has job identifier(s): {', '.join(identifiers_found)}")
+                                stats['has_identifier'] += 1
+                            else:
+                                logger.warning(f"   ⚠️  Step 4: No clear job identifier found (may still be valid)")
+
+                            # Step 5: Filter out obviously fake domains and suspicious patterns
+                            fake_indicators = ['example.com', 'placeholder.', 'fake.', 'test.', 'sample.']
+                            # Check for suspicious placeholder IDs like abc123, def456, test123
+                            suspicious_patterns = [
+                                r'/abc\d+',  # abc123, abc456
+                                r'/def\d+',  # def456
+                                r'/test\d+', # test123
+                                r'/demo\d+', # demo123
+                                r'/sample\d+', # sample123
+                                r'/placeholder', # placeholder
+                                r'/\d{1,3}$', # Very short numeric IDs (1-3 digits) at end of URL
+                            ]
+
+                            is_fake = any(indicator in job_url.lower() for indicator in fake_indicators)
+                            is_suspicious = any(re.search(pattern, job_url.lower()) for pattern in suspicious_patterns)
+
+                            # Additional check: Validate UUID format if it looks like a UUID
+                            uuid_pattern = r'/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})'
+                            uuid_like_pattern = r'/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})'
+
+                            uuid_like_match = re.search(uuid_like_pattern, job_url.lower())
+                            if uuid_like_match:
+                                potential_uuid = uuid_like_match.group(1)
+                                # Check if it's a valid UUID (only hex characters)
+                                valid_uuid_match = re.match(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$', potential_uuid)
+                                if not valid_uuid_match:
+                                    logger.warning(f"   ❌ Step 5 FAILED: Invalid UUID format detected (contains non-hex characters: {potential_uuid})")
+                                    stats['filtered_fake'] += 1
+                                    continue
+
+                            if is_fake or is_suspicious:
+                                logger.warning(f"   ❌ Step 5 FAILED: {'Fake domain' if is_fake else 'Suspicious pattern'} detected")
+                                stats['filtered_fake'] += 1
+                                continue
+                            logger.info(f"   ✅ Step 5: Not a fake/suspicious URL")
+
+                            # Step 6: Verify URL is actually accessible (HTTP HEAD request)
+                            # Only do this for a sample to avoid rate limiting
+                            should_verify = len(valid_jobs) < 3  # Verify first 3 jobs
+                            url_is_valid = True
+
+                            if should_verify:
+                                logger.info(f"   🔍 Step 6: Verifying URL accessibility...")
+                                url_is_valid = await self._verify_url_exists(job_url)
+                                if not url_is_valid:
+                                    logger.warning(f"   ❌ Step 6 FAILED: URL returns 404 or is inaccessible")
+                                    stats['filtered_inaccessible'] = stats.get('filtered_inaccessible', 0) + 1
+                                    continue
+                                logger.info(f"   ✅ Step 6: URL is accessible")
+                            else:
+                                logger.info(f"   ⏭️  Step 6: Skipped (already verified enough URLs)")
+
                             # Job passed all validation
+                            logger.info(f"   ✅ PASSED ALL VALIDATION - Adding to valid jobs")
+                            stats['final_valid'] += 1
+
+                            # Ensure URL field is properly set
+                            if 'url' not in job or not job['url']:
+                                job['url'] = job_url
                             job["source"] = company_name
                             job["company"] = company_name
                             job["salary"] = job.get("salary") or None
                             valid_jobs.append(job)
-                            logger.info(f"✅ Validated job: {job.get('title', 'Unknown')} - {job_url}")
                         
+                        # Print summary statistics
+                        logger.info(f"\n📊 =================  VALIDATION SUMMARY =================")
+                        logger.info(f"📥 Total from OpenAI:     {stats['total_from_openai']}")
+                        logger.info(f"✅ Passed basic check:    {stats['passed_basic']}")
+                        logger.info(f"✅ Passed format check:   {stats['passed_format']}")
+                        logger.info(f"❌ Filtered as generic:   {stats['filtered_generic']}")
+                        logger.info(f"✅ Has job identifier:    {stats['has_identifier']}")
+                        logger.info(f"❌ Filtered as fake:      {stats['filtered_fake']}")
+                        logger.info(f"❌ Filtered inaccessible: {stats.get('filtered_inaccessible', 0)}")
+                        logger.info(f"✅ FINAL VALID JOBS:      {stats['final_valid']}")
+                        logger.info(f"📊 ========================================================\n")
+
                         logger.info(f"✅ Successfully validated {len(valid_jobs)} real jobs from OpenAI response (filtered {len(results) - len(valid_jobs)} invalid/non-existent jobs)")
+
+                        # If OpenAI returned fake results, try direct web scraping
+                        if len(valid_jobs) == 0 and len(results) > 0:
+                            logger.warning(f"⚠️ OpenAI returned {len(results)} jobs but all were invalid/fake. Falling back to direct web scraping...")
+
+                            try:
+                                scraper = WebScraperClient()
+                                scraped_jobs = await scraper.find_job_listings(
+                                    company_name=company_name,
+                                    careers_url=careers_url,
+                                    user_skills=user_skills
+                                )
+
+                                if scraped_jobs:
+                                    logger.info(f"✅ Web scraping found {len(scraped_jobs)} real jobs")
+                                    # Convert to our format
+                                    for job in scraped_jobs:
+                                        job['snippet'] = f"Location: {job.get('location', 'Not specified')}"
+                                        if 'department' in job and job['department']:
+                                            job['snippet'] += f" | Department: {job['department']}"
+                                    return scraped_jobs[:num_results]
+                                else:
+                                    logger.info("ℹ️ Web scraping also found no jobs - company may not have openings")
+                            except Exception as e:
+                                logger.warning(f"Web scraping fallback failed: {e}")
+
                         return valid_jobs[:num_results]
                     else:
                         # Empty array is valid - means no jobs found
@@ -372,6 +562,20 @@ Return actual job openings you find for {company_name}. If no suitable jobs are 
         except Exception as e:
             logger.error(f"Failed to search jobs on careers page {careers_url}: {e}")
             return []
+
+    async def _verify_url_exists(self, url: str) -> bool:
+        """Verify if a URL actually exists by making a HEAD request"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.head(url, timeout=5, allow_redirects=True) as response:
+                    # Consider 200-399 as valid (includes redirects)
+                    is_valid = 200 <= response.status < 400
+                    if not is_valid:
+                        logger.debug(f"URL verification failed: {url} returned status {response.status}")
+                    return is_valid
+        except Exception as e:
+            logger.debug(f"URL verification error for {url}: {e}")
+            return False
 
 
 

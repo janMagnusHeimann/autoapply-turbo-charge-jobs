@@ -1,8 +1,7 @@
 -- CV Generation System Database Schema
 -- Tables for storing CV generations and application tracking
 
--- CV generations table
-CREATE TABLE cv_generations (
+CREATE TABLE IF NOT EXISTS cv_generations (
   id TEXT PRIMARY KEY,
   user_id UUID NOT NULL,
   job_id TEXT NOT NULL,
@@ -114,34 +113,39 @@ CREATE TABLE IF NOT EXISTS publications (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes for performance
-CREATE INDEX idx_cv_generations_user_id ON cv_generations(user_id);
-CREATE INDEX idx_cv_generations_created_at ON cv_generations(created_at);
-CREATE INDEX idx_application_history_user_id ON application_history(user_id);
-CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
-CREATE INDEX idx_work_experiences_user_id ON work_experiences(user_id);
-CREATE INDEX idx_user_skills_user_id ON user_skills(user_id);
-CREATE INDEX idx_github_projects_user_id ON github_projects(user_id);
-CREATE INDEX idx_publications_user_id ON publications(user_id);
+CREATE INDEX IF NOT EXISTS idx_cv_generations_user_id ON cv_generations(user_id);
+CREATE INDEX IF NOT EXISTS idx_cv_generations_created_at ON cv_generations(created_at);
+CREATE INDEX IF NOT EXISTS idx_application_history_user_id ON application_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_work_experiences_user_id ON work_experiences(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_skills_user_id ON user_skills(user_id);
+CREATE INDEX IF NOT EXISTS idx_github_projects_user_id ON github_projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_publications_user_id ON publications(user_id);
 
--- Update triggers
+DROP TRIGGER IF EXISTS update_cv_generations_updated_at ON cv_generations;
 CREATE TRIGGER update_cv_generations_updated_at BEFORE UPDATE ON cv_generations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_application_history_updated_at ON application_history;
 CREATE TRIGGER update_application_history_updated_at BEFORE UPDATE ON application_history
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON user_profiles;
 CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_work_experiences_updated_at ON work_experiences;
 CREATE TRIGGER update_work_experiences_updated_at BEFORE UPDATE ON work_experiences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_skills_updated_at ON user_skills;
 CREATE TRIGGER update_user_skills_updated_at BEFORE UPDATE ON user_skills
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_github_projects_updated_at ON github_projects;
 CREATE TRIGGER update_github_projects_updated_at BEFORE UPDATE ON github_projects
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_publications_updated_at ON publications;
 CREATE TRIGGER update_publications_updated_at BEFORE UPDATE ON publications
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
