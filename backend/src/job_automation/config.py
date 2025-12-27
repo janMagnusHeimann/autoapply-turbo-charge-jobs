@@ -32,7 +32,7 @@ class Config:
     
     # OpenAI Configuration
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-5"
     
     # LLM Settings
     llm_temperature: float = 0.1
