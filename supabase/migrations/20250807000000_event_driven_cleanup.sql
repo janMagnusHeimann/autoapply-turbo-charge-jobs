@@ -47,7 +47,7 @@ CREATE POLICY "Service role can manage all events" ON events
   FOR ALL USING (auth.jwt()->>'role' = 'service_role');
 
 -- Create event statistics view for monitoring
-CREATE OR REPLACE VIEW event_statistics AS
+CREATE OR REPLACE VIEW event_statistics WITH (security_invoker = true) AS
 SELECT 
   DATE_TRUNC('hour', timestamp) as hour,
   event_type,
@@ -64,8 +64,11 @@ GRANT SELECT ON event_statistics TO authenticated;
 
 -- Create function to clean old events (older than 30 days)
 CREATE OR REPLACE FUNCTION cleanup_old_events()
-RETURNS void AS $$
+RETURNS void 
+SET search_path = ''
+AS $$
 BEGIN
+  
   DELETE FROM events 
   WHERE timestamp < NOW() - INTERVAL '30 days'
     AND priority != 'urgent';
@@ -78,8 +81,11 @@ $$ LANGUAGE plpgsql;
 
 -- Add trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = ''
+AS $$
 BEGIN
+  
   NEW.updated_at = NOW();
   RETURN NEW;
 END;

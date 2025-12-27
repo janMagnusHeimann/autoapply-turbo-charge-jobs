@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_cv_assets_github_repos
 ON cv_assets(user_id, asset_type) WHERE asset_type = 'repository';
 
 -- Create a view for GitHub repository statistics
-CREATE OR REPLACE VIEW github_repository_stats AS
+CREATE OR REPLACE VIEW github_repository_stats WITH (security_invoker = true) AS
 SELECT 
   ca.user_id,
   COUNT(*) as total_repositories,
@@ -38,7 +38,9 @@ GROUP BY ca.user_id;
 
 -- Function to clean up GitHub data when user disconnects
 CREATE OR REPLACE FUNCTION cleanup_github_data(user_uuid UUID)
-RETURNS void AS $$
+RETURNS void 
+SET search_path = ''
+AS $$
 BEGIN
   -- Remove GitHub access token and data
   UPDATE user_preferences 
@@ -59,7 +61,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to update GitHub sync timestamp
 CREATE OR REPLACE FUNCTION update_github_sync_timestamp(user_uuid UUID)
-RETURNS void AS $$
+RETURNS void 
+SET search_path = ''
+AS $$
 BEGIN
   UPDATE user_preferences 
   SET github_last_sync = NOW()
@@ -69,7 +73,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger to update github_last_updated when repository assets are modified
 CREATE OR REPLACE FUNCTION update_github_repository_timestamp()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = ''
+AS $$
 BEGIN
   IF NEW.asset_type = 'repository' AND NEW.metadata ? 'github_id' THEN
     NEW.github_last_updated = NOW();

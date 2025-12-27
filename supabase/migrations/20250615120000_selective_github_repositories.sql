@@ -47,8 +47,11 @@ CREATE POLICY "Users can delete their own selected repositories" ON selected_rep
 
 -- Function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_selected_repositories_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = ''
+AS $$
 BEGIN
+  
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
@@ -61,7 +64,7 @@ CREATE TRIGGER update_selected_repositories_updated_at
   EXECUTE FUNCTION update_selected_repositories_updated_at();
 
 -- View for easy repository data access with selection status
-CREATE OR REPLACE VIEW user_repository_portfolio AS
+CREATE OR REPLACE VIEW user_repository_portfolio WITH (security_invoker = true) AS
 SELECT 
   sr.id,
   sr.user_id,

@@ -67,10 +67,20 @@ else
 fi
 
 # Install Supabase CLI if not present
+# Install Supabase CLI if not present
 if ! command -v supabase &> /dev/null; then
-    log_info "Installing Supabase CLI..."
-    npm install -g supabase
-    log_success "Supabase CLI installed"
+    log_info "Supabase CLI not found."
+    if [[ "$OSTYPE" == "darwin"* ]] && command -v brew &> /dev/null; then
+        log_info "Detected macOS with Homebrew. Installing Supabase CLI via Homebrew..."
+        brew install supabase/tap/supabase
+        log_success "Supabase CLI installed"
+    else
+        log_error "Automatic installation failed. Please install Supabase CLI manually:"
+        echo "  - macOS: brew install supabase/tap/supabase"
+        echo "  - Windows: scoop bucket add supabase https://github.com/supabase/scoop-bucket.git && scoop install supabase"
+        echo "  - Linux: brew install supabase/tap/supabase (if using Linuxbrew) or see https://supabase.com/docs/guides/cli"
+        exit 1
+    fi
 else
     log_success "Supabase CLI already installed"
 fi

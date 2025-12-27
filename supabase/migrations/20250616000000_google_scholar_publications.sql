@@ -84,16 +84,22 @@ CREATE POLICY "Users can delete their own selected publications" ON selected_pub
 
 -- Functions to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_google_scholar_connections_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = ''
+AS $$
 BEGIN
+  
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION update_selected_publications_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = ''
+AS $$
 BEGIN
+  
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
@@ -111,7 +117,7 @@ CREATE TRIGGER update_selected_publications_updated_at
   EXECUTE FUNCTION update_selected_publications_updated_at();
 
 -- View for easy publication data access with selection status
-CREATE OR REPLACE VIEW user_publication_portfolio AS
+CREATE OR REPLACE VIEW user_publication_portfolio WITH (security_invoker = true) AS
 SELECT 
   sp.id,
   sp.user_id,

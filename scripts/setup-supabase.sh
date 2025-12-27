@@ -19,9 +19,20 @@ echo "============================="
 echo -e "${NC}"
 
 # Check if Supabase CLI is installed
+# Check if Supabase CLI is installed
 if ! command -v supabase &> /dev/null; then
-    log_error "Supabase CLI not found. Installing..."
-    npm install -g supabase
+    log_info "Supabase CLI not found."
+    if [[ "$OSTYPE" == "darwin"* ]] && command -v brew &> /dev/null; then
+        log_info "Detected macOS with Homebrew. Installing Supabase CLI via Homebrew..."
+        brew install supabase/tap/supabase
+        log_success "Supabase CLI installed"
+    else
+        log_error "Automatic installation failed. Please install Supabase CLI manually:"
+        echo "  - macOS: brew install supabase/tap/supabase"
+        echo "  - Windows: scoop bucket add supabase https://github.com/supabase/scoop-bucket.git && scoop install supabase"
+        echo "  - Linux: brew install supabase/tap/supabase (if using Linuxbrew) or see https://supabase.com/docs/guides/cli"
+        exit 1
+    fi
 fi
 
 # Check if user is logged in
@@ -189,11 +200,11 @@ else
 fi
 
 # Test connection
-log_info "Testing database connection..."
-if supabase db remote commit --message "Setup test"; then
-    log_success "Database connection test passed"
+log_info "Testing connection..."
+if supabase projects list &> /dev/null; then
+    log_success "Supabase connection verified"
 else
-    log_warning "Database connection test failed. Please check your setup."
+    log_warning "Connection test failed. Please check your setup."
 fi
 
 # Final instructions
