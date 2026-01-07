@@ -15,10 +15,11 @@ terraform {
   }
 
   # Backend configuration for state storage
-  backend "gcs" {
-    bucket = "autoapply-terraform-state"
-    prefix = "terraform/state"
-  }
+  # Backend configuration for state storage
+  # backend "gcs" {
+  #   bucket = "autoapply-terraform-state"
+  #   prefix = "terraform/state"
+  # }
 }
 
 provider "google" {
@@ -39,9 +40,10 @@ locals {
       port = 8000
       path = "../backend"
       env_vars = {
-        API_HOST     = "0.0.0.0"
-        API_PORT     = "8000"
-        SERVICE_TYPE = "JOB_DISCOVERY"
+        API_HOST             = "0.0.0.0"
+        API_PORT             = "8000"
+        SERVICE_TYPE         = "JOB_DISCOVERY"
+        CORS_ALLOWED_ORIGINS = var.cors_allowed_origins
       }
     }
     cv_api = {
@@ -49,9 +51,10 @@ locals {
       port = 8001
       path = "../backend/cv_api"
       env_vars = {
-        API_HOST     = "0.0.0.0"
-        API_PORT     = "8001"
-        SERVICE_TYPE = "CV_PROCESSING"
+        API_HOST             = "0.0.0.0"
+        API_PORT             = "8001"
+        SERVICE_TYPE         = "CV_PROCESSING"
+        CORS_ALLOWED_ORIGINS = var.cors_allowed_origins
       }
     }
     agent_api = {
@@ -59,9 +62,10 @@ locals {
       port = 8002
       path = "../backend/application_agent"
       env_vars = {
-        API_HOST     = "0.0.0.0"
-        API_PORT     = "8002"
-        SERVICE_TYPE = "APPLICATION_AGENT"
+        API_HOST             = "0.0.0.0"
+        API_PORT             = "8002"
+        SERVICE_TYPE         = "APPLICATION_AGENT"
+        CORS_ALLOWED_ORIGINS = var.cors_allowed_origins
       }
     }
   }

@@ -88,3 +88,10 @@ coverage.xml
 logs/
 backend/logs/
 *.log
+
+# Terraform
+terraform/terraform.tfvars
+terraform/terraform.tfvars.json
+*.tfstate
+*.tfstate.backup
+.terraform/

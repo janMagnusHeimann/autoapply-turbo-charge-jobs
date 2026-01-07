@@ -114,3 +114,9 @@ variable "enable_cloud_tasks" {
   type        = bool
   default     = true
 }
+
+variable "cors_allowed_origins" {
+  description = "Comma-separated list of allowed CORS origins (e.g., Vercel URL)"
+  type        = string
+  default     = "*"
+}
