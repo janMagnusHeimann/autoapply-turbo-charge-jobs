@@ -21,14 +21,18 @@ import PyPDF2
 
 from cv_processor import CVProcessor
 
-# Load environment variables from the root directory
+# Load environment variables - first from root, then override with local .env
 root_dir = Path(__file__).parent.parent.parent
-env_path = root_dir / '.env'
-if env_path.exists():
-    load_dotenv(env_path)
-    print(f"Loaded environment variables from: {env_path}")
-else:
-    print(f"No .env file found at: {env_path}")
+root_env_path = root_dir / '.env'
+local_env_path = Path(__file__).parent / '.env'
+
+if root_env_path.exists():
+    load_dotenv(root_env_path)
+    print(f"Loaded environment variables from: {root_env_path}")
+
+if local_env_path.exists():
+    load_dotenv(local_env_path, override=True)
+    print(f"Loaded local environment variables from: {local_env_path}")
 
 # Setup logging
 logging.basicConfig(

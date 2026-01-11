@@ -187,7 +187,7 @@ CRITICAL: Return ONLY the JSON object, no markdown formatting, no explanations.
                         "content": prompt
                     }
                 ],
-                max_tokens=3000,
+                max_completion_tokens=3000,
                 temperature=0.1
             )
             
