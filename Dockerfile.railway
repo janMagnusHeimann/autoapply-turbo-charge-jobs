@@ -1,0 +1,48 @@
+# Railway-optimized Frontend Dockerfile
+# This builds and serves the React frontend
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first (better caching)
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+
+# Build with production settings
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_API_BASE_URL
+ARG VITE_GITHUB_CLIENT_ID
+ARG VITE_CV_API_URL
+ARG VITE_APPLICATION_AGENT_URL
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GITHUB_CLIENT_ID=$VITE_GITHUB_CLIENT_ID
+ENV VITE_CV_API_URL=$VITE_CV_API_URL
+ENV VITE_APPLICATION_AGENT_URL=$VITE_APPLICATION_AGENT_URL
+
+RUN npm run build
+
+# Production stage - serve with a lightweight server
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Install serve for static file serving
+RUN npm install -g serve
+
+# Copy built assets
+COPY --from=builder /app/dist ./dist
+
+# Railway uses PORT env variable
+ENV PORT=8080
+EXPOSE 8080
+
+# Serve the built app
+CMD ["sh", "-c", "serve -s dist -l $PORT"]
